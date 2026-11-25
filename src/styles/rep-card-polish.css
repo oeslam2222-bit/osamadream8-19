@@ -1,0 +1,64 @@
+/* ==========================================================================
+   rep-card-polish.css — كروت المناديب (بروفايل المناديب)
+   هيدر بلون القطاع (زي كارت العميل) + نسبة تحقيق بلون الأداء + 4 خانات بدلالات ثابتة.
+   نهاري + ليلي من توكنز --app-*، بدون !important.
+   ========================================================================== */
+.rp-card { --rs: var(--cc-sector-home, #2563eb); --rs2: var(--cc-sector-home-shade, #1a45a4); --pc: #10b981; }
+.rp-card[data-sector='electrical'] { --rs: var(--cc-sector-electrical, #0284c7); --rs2: var(--cc-sector-electrical-shade, #0b5f94); }
+.rp-card[data-perf='top'] { --pc: #10b981; }
+.rp-card[data-perf='mid'] { --pc: #f59e0b; }
+.rp-card[data-perf='low'] { --pc: #ef4444; }
+
+.rep-grid .rp-card.rp-card {
+  padding: 0; overflow: hidden; border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--rs) 28%, var(--app-border));
+  border-inline-start: 4px solid var(--pc);
+  background-color: color-mix(in srgb, var(--rs) 4%, var(--app-card));
+  background-image: none;
+}
+.rep-grid .rp-card.rp-card::after { display: none; }
+.rep-grid .rp-card.rp-card:hover { border-color: color-mix(in srgb, var(--rs) 55%, var(--app-border)); border-inline-start-color: var(--pc); box-shadow: 0 12px 26px -16px color-mix(in srgb, var(--rs) 60%, transparent); }
+html.dark .rep-grid .rp-card.rp-card { background-color: color-mix(in srgb, var(--rs) 7%, var(--app-card)); }
+
+/* الهيدر */
+.rp-hd { display: flex; align-items: flex-start; gap: 11px; padding: 14px; color: #fff; background-image: linear-gradient(135deg, var(--rs2), var(--rs)); }
+.rp-hd__av { width: 52px; height: 52px; flex: 0 0 auto; border-radius: 15px; object-fit: cover; object-position: top; border: 2px solid rgba(255,255,255,.9); background: rgba(255,255,255,.2); }
+.rp-hd__id { min-width: 0; flex: 1 1 auto; }
+.rp-hd__name { font-size: 15.5px; font-weight: 800; line-height: 1.35; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-hd__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 3px; font-size: 11.5px; font-weight: 700; color: rgba(255,255,255,.9); }
+.rp-hd__user { padding: 0 6px; border-radius: 6px; background: rgba(255,255,255,.18); font-family: ui-monospace, monospace; font-weight: 700; color: #fff; }
+.rp-hd__chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.rp-chip { padding: 1px 9px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #fff; background: rgba(0,0,0,.2); border: 1px solid rgba(255,255,255,.25); }
+.rp-pct { flex: 0 0 auto; padding: 2px 10px; border-radius: 9px; font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; background: #fff; color: #065f46; border: 2px solid var(--pc); }
+.rp-card[data-perf='mid'] .rp-pct { color: #92400e; }
+.rp-card[data-perf='low'] .rp-pct { color: #991b1b; }
+
+/* الجسم */
+.rp-bd { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 14px; }
+.rp-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+/* الخانات الأربعة: كروت مؤشرات بتدرّج كامل ونص أبيض (نفس نظام KPI)
+   مديونية = عنبري · متأخرات = أحمر (أخضر لو صفر) · مبيعات = أزرق · تحصيل = أخضر */
+.rp-tile {
+  --a: var(--kpi-warn-a, #b45309); --c: var(--kpi-warn, #d97706);
+  position: relative; isolation: isolate; overflow: hidden;
+  display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 11px 12px; border: 0; border-radius: 14px;
+  background: linear-gradient(135deg, var(--a), var(--c)); box-shadow: 0 6px 14px -8px var(--c); color: #ffffff;
+}
+.rp-tile::after {
+  content: ""; position: absolute; z-index: -1; inset-block-end: -28px; inset-inline-start: -20px;
+  width: 78px; height: 78px; border-radius: 50%; background: rgba(255, 255, 255, 0.13); pointer-events: none;
+}
+.rp-tile--debt  { --a: var(--kpi-warn-a, #b45309);       --c: var(--kpi-warn, #d97706); }
+.rp-tile--bad   { --a: var(--kpi-debt-a, #be123c);       --c: var(--kpi-debt, #e11d48); }
+.rp-tile--ok    { --a: var(--kpi-collection-a, #047857); --c: var(--kpi-collection, #059669); }
+.rp-tile--sales { --a: var(--kpi-sales-a, #1d4ed8);      --c: var(--kpi-sales, #2563eb); }
+.rp-tile--coll  { --a: var(--kpi-collection-a, #047857); --c: var(--kpi-collection, #059669); }
+.rp-tile__l { font-size: 11.5px; font-weight: 800; color: rgba(255, 255, 255, 0.95); }
+.rp-tile__v { font-size: clamp(1rem, 4.2vw, 1.25rem); font-weight: 800; font-variant-numeric: tabular-nums; color: #ffffff; overflow-wrap: anywhere; line-height: 1.2; }
+.rp-tile--debt .rp-tile__v { color: #ffffff; }
+
+.rp-ft { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; padding-top: 10px; border-top: 1px dashed var(--app-border); font-size: 12px; }
+.rp-ft__c { font-weight: 800; color: var(--app-text-muted); }
+.rp-ft__c strong { color: var(--app-text); }
+.rp-ft__open { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: color-mix(in srgb, var(--rs) 75%, var(--app-text)); }
+.rp-card:hover .rp-ft__open { color: var(--rs); }

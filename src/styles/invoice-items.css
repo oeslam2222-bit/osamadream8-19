@@ -1,0 +1,78 @@
+/* ==========================================================================
+   عرض بنود الفاتورة + كروت التفاصيل/الائتمان/الإجراءات تحت كارت الطلب
+   اللون الأساسي = لون مرحلة الكارت (--st) لو الجدول جوه كارت طلب، وإلا أزرق.
+   كله من توكنز --app-* فبيقلب نهاري/ليلي، وبدون !important.
+   ========================================================================== */
+.ord-items { --ist: var(--st, #2563eb); }
+
+.ord-items__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ord-items__title { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 800; color: var(--app-text); }
+.ord-items__ico {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+  background: color-mix(in srgb, var(--ist) 14%, transparent); color: var(--ist);
+}
+.ord-items__stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.ord-stat {
+  display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-radius: 9px;
+  background: color-mix(in srgb, var(--ist) 10%, var(--app-card));
+  border: 1px solid color-mix(in srgb, var(--ist) 28%, var(--app-border));
+}
+.ord-stat em { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--app-text-muted); }
+.ord-stat b { font-size: 12px; font-weight: 800; color: var(--app-text); font-variant-numeric: tabular-nums; }
+.ord-stat--disc { background: color-mix(in srgb, #dc2626 10%, var(--app-card)); border-color: color-mix(in srgb, #dc2626 30%, var(--app-border)); }
+.ord-stat--disc b { color: #dc2626; }
+html.dark .ord-stat--disc b { color: #fca5a5; }
+
+.ord-items__wrap {
+  overflow-x: auto; border-radius: 14px; border: 1px solid var(--app-border);
+  background: var(--app-card);
+}
+.ord-items .ord-items__table { border-collapse: separate; border-spacing: 0; min-width: 760px; width: 100%; }
+.ord-items .ord-items__table thead th {
+  padding: 10px; font-size: 11px; font-weight: 800; white-space: nowrap;
+  background: color-mix(in srgb, var(--ist) 14%, var(--app-card-secondary, var(--app-card)));
+  color: var(--app-text);
+  border-bottom: 2px solid var(--ist);
+}
+.ord-items .ord-items__table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--ist) 4%, transparent); }
+.ord-items .ord-items__table tbody tr:hover td { background: color-mix(in srgb, var(--ist) 9%, transparent); }
+.ord-items .ord-items__table tbody td { padding: 10px; border-bottom: 1px solid var(--app-border); vertical-align: middle; }
+.ord-items .ord-items__table tbody tr:last-child td { border-bottom: 0; }
+/* عمود اسم الصنف أوسع، وعمود الإجمالي بلون المرحلة */
+.ord-items .ord-items__table td:nth-child(3) { min-width: 220px; line-height: 1.5; }
+.ord-items .ord-items__table td:nth-child(8) { color: var(--ist); font-weight: 800; }
+html.dark .ord-items .ord-items__table td:nth-child(8) { color: color-mix(in srgb, var(--ist) 60%, #ffffff); }
+.ord-items .ord-items__table td:nth-child(1),
+.ord-items .ord-items__table td:nth-child(2) { color: var(--app-text-muted); }
+
+.ord-items__sum { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ord-sum {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding: 9px 12px; border-radius: 12px;
+  background: var(--app-card-secondary, var(--app-card)); border: 1px solid var(--app-border);
+}
+.ord-sum em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--app-text-muted); }
+.ord-sum b { font-size: 14px; font-weight: 800; color: var(--app-text); }
+.ord-sum:first-child { border-color: color-mix(in srgb, var(--ist) 35%, var(--app-border)); background: color-mix(in srgb, var(--ist) 9%, var(--app-card)); }
+@media (max-width: 520px) { .ord-items__sum { grid-template-columns: 1fr; } }
+
+/* ---------- كروت التفاصيل / الائتمان / الإجراءات ---------- */
+.ord-info-grid {
+  display: grid; grid-template-columns: 1fr; gap: 10px;
+  padding-top: 12px; border-top: 1px solid var(--app-border);
+  font-size: 12px; font-weight: 700; color: var(--app-text-muted);
+}
+@media (min-width: 768px) { .ord-info-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ord-info {
+  --ic: #2563eb;
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 11px 12px 12px; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--ic) 28%, var(--app-border));
+  border-top: 3px solid var(--ic);
+  background: color-mix(in srgb, var(--ic) 6%, var(--app-card));
+}
+.ord-info--details { --ic: #2563eb; }
+.ord-info--credit  { --ic: #d97706; }
+.ord-info--actions { --ic: var(--st, #7c3aed); }
+.ord-info__title { margin-bottom: 3px; font-size: 13px; font-weight: 800; color: var(--app-text); }
+.ord-info b { color: var(--app-text); }

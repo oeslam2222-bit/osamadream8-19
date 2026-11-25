@@ -192,7 +192,7 @@ const MainLayout: React.FC = () => {
   } = useApp();
   const { cart, getCartSummary } = useCart();
 
-  const [activeTab, setActiveTabState] = useState<string>(() => readSavedActiveTab(currentUser?.id));
+  const [activeTab, setActiveTabState] = useState<string>(() => readSavedActiveTab(currentUser?.id, false));
   const [, startTabTransition] = React.useTransition();
   const setActiveTab = useCallback((nextTab: React.SetStateAction<string>) => {
     startTabTransition(() => {
@@ -693,7 +693,7 @@ const MainLayout: React.FC = () => {
 
           {openTabs.has('settings') && allowedTabs.includes('settings') && (
             <TabPane hidden={activeTab !== 'settings'}>
-              <SettingsCenterView onNavigate={(tab) => setActiveTab(tab)} />
+              <SettingsCenterView onNavigate={(tab) => setActiveTab(tab)} canOpenGuide={allowedTabs.includes('guide')} />
             </TabPane>
           )}
 

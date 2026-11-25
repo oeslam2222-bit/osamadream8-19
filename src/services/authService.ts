@@ -49,16 +49,15 @@ function isConfigured(): boolean {
 const LOGIN_EMAIL_CACHE_KEY = 'tantawy_login_email_cache_v1';
 const LOGIN_EMAIL_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 أيام
 
-export async function resolveLoginEmail(
+async function resolveLoginEmailInner(
   identifier: string
 ): Promise<{ email: string | null; rpcMissing: boolean; unavailable?: boolean; reason?: string }> {
   const raw = (identifier || '').trim();
   if (!raw) return { email: null, rpcMissing: false };
-  if (raw.includes('@')) return { email: raw.toLowerCase(), rpcMissing: false };
 
   // --- Fast path: localStorage cache ---
   try {
-    const cached = localStorage.getItem(LOGIN_EMAIL_CACHE_KEY);
+    const cached = raw.includes('@') ? null : localStorage.getItem(LOGIN_EMAIL_CACHE_KEY);
     if (cached) {
       const { map, timestamp } = JSON.parse(cached);
       if (Date.now() - timestamp < LOGIN_EMAIL_CACHE_TTL && map[raw]) {
@@ -121,6 +120,24 @@ export async function resolveLoginEmail(
       reason: e instanceof Error ? e.message : String(e),
     };
   }
+}
+
+/**
+ * يحدد إيميل Supabase Auth الفعلي لما المستخدم يكتب اسم مستخدم أو إيميل أو موبايل.
+ * حتى لو كتب إيميل: بنسأل الدالة الأول، لأن إيميل الحساب في Auth ممكن يختلف عن
+ * إيميل الصف في users (لو اتعدّل من شاشة الفريق). لو الدالة مالقتش حاجة أو
+ * الاتصال بها فشل، نرجع للإيميل زي ما كُتب.
+ */
+export async function resolveLoginEmail(
+  identifier: string
+): Promise<{ email: string | null; rpcMissing: boolean; unavailable?: boolean; reason?: string }> {
+  const raw = (identifier || '').trim();
+  if (!raw) return { email: null, rpcMissing: false };
+  const result = await resolveLoginEmailInner(raw);
+  if (raw.includes('@') && !result.email) {
+    return { email: raw.toLowerCase(), rpcMissing: false };
+  }
+  return result;
 }
 
 /**

@@ -1,0 +1,53 @@
+/* ==========================================================================
+   sales-summary-polish.css — «تحليل مبيعات الأصناف» (ItemSalesFinalSummaryDashboard)
+   متحدد بـ .ss-page--sum فمفيش تأثير على ItemSalesInsights ولا غيرها. توكنز + ألوان هادية.
+   KPI: مبيعات أزرق · كمية سيان · أصناف بنفسجي · عملاء عنبري. قوائم الترتيب: فروع تيل · عائلات بنفسجي · مناديب عنبري.
+   نهاري/ليلي، بدون !important وبدون blur.
+   ========================================================================== */
+.ss-page--sum .ss-head {
+  background: linear-gradient(135deg, color-mix(in srgb, #0ea5e9 14%, var(--app-card)), var(--app-card) 70%);
+  border-color: color-mix(in srgb, #0ea5e9 26%, var(--app-border));
+  border-top: 4px solid #0ea5e9;
+}
+.ss-page--sum .ss-title { font-size: 21px; }
+.ss-page--sum .ss-seg__btn.is-active { background: #2563eb; color: #fff; }
+
+/* كروت الأرقام */
+.ss-page--sum .ss-kpi {
+  --a: #2563eb; --c: #1d4ed8;
+  position: relative; overflow: hidden; isolation: isolate; border: 0; color: #fff;
+  background: linear-gradient(135deg, var(--a), var(--c));
+  box-shadow: 0 6px 16px -8px var(--c);
+}
+.ss-page--sum .ss-kpi--sales { --a: #2563eb; --c: #1d4ed8; }
+.ss-page--sum .ss-kpi--qty   { --a: #0891b2; --c: #0e7490; }
+.ss-page--sum .ss-kpi--items { --a: #7c3aed; --c: #6d28d9; }
+.ss-page--sum .ss-kpi--cust  { --a: #d97706; --c: #b45309; }
+.ss-page--sum .ss-kpi .ss-kpi__label { color: rgba(255, 255, 255, .92); }
+.ss-page--sum .ss-kpi .ss-kpi__value { color: #fff; font-variant-numeric: tabular-nums; }
+.ss-page--sum .ss-kpi .ss-kpi__meta { color: rgba(255, 255, 255, .88); }
+.ss-page--sum .ss-kpi__orb { position: absolute; z-index: -1; left: -22px; bottom: -34px; width: 96px; height: 96px; border-radius: 50%; background: rgba(255, 255, 255, .13); pointer-events: none; }
+/* شارة النمو على الخلفية الملونة: شفافة ونص أبيض + أيقونة (مش اللون وحده) */
+.ss-page--sum .ss-kpi .ss-growth { background: rgba(255, 255, 255, .2); border-color: rgba(255, 255, 255, .45); color: #fff; }
+
+/* الشارت */
+.ss-page--sum .ss-bar { fill: #3b82f6; }
+.ss-page--sum .ss-bar.is-active { fill: #10b981; opacity: 1; }
+.ss-page--sum .ss-hint { color: var(--app-text-muted); }
+
+/* قوائم الترتيب */
+.ss-page--sum .ss-rkc { --rc: #14b8a6; border-top: 3px solid var(--rc); }
+.ss-page--sum .ss-rkc--teal { --rc: #14b8a6; }
+.ss-page--sum .ss-rkc--violet { --rc: #8b5cf6; }
+.ss-page--sum .ss-rkc--amber { --rc: #f59e0b; }
+.ss-page--sum .ss-rkc .ss-h3 svg { color: var(--rc); }
+.ss-page--sum .ss-rkc .ss-rank__i { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border-radius: 50%; color: var(--rc); background: color-mix(in srgb, var(--rc) 16%, transparent); }
+.ss-page--sum .ss-rkc .ss-fill { background: var(--rc); }
+
+/* الجداول */
+.ss-page--sum .ss-table th { background: color-mix(in srgb, #2563eb 12%, var(--app-card-secondary, var(--app-card))); color: var(--app-text); border-bottom: 2px solid #2563eb; }
+.ss-page--sum .ss-table tbody tr:nth-child(even) td { background: color-mix(in srgb, #2563eb 3.5%, transparent); }
+.ss-page--sum .ss-table tbody tr:hover td { background: color-mix(in srgb, #2563eb 9%, transparent); }
+.ss-page--sum .ss-table--items .ss-fill, .ss-page--sum .ss-card > .ss-tablewrap .ss-fill { background: linear-gradient(90deg, #1d4ed8, #60a5fa); }
+.ss-page--sum .ss-cardhead .ss-h3 svg { color: #2563eb; }
+html.dark .ss-page--sum .ss-cardhead .ss-h3 svg { color: #7cb0ff; }

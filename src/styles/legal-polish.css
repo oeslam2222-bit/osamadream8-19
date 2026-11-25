@@ -1,0 +1,132 @@
+/* ==========================================================================
+   legal-polish.css — صفحة «مركز القيادة القانونية» (LegalAdvisorDashboard)
+   مبنية على توكنز التطبيق + color-mix → نهاري/ليلي. الألوان: ملفات=أزرق · متعثرين=أحمر ·
+   إنذارات=عنبري · ضمانات=أخضر · نماذج=بنفسجي. الكارت المحدد كان فاتح ثابت في الليلي (نص مش باين) → اتصلّح.
+   اتشال blur الكبير من الهيدر (تقيل على الموبايل).
+   ========================================================================== */
+.lg-page .lg-hd {
+  border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
+  background-image: radial-gradient(circle at 10% 115%, rgba(245,158,11,.16), transparent 42%), linear-gradient(135deg, #0b2230, #12395a 60%, #164a73);
+  box-shadow: 0 12px 28px -16px rgba(2,8,23,.6);
+}
+.lg-page .lg-flash { border: 1px solid; box-shadow: 0 10px 24px -10px rgba(0,0,0,.4); }
+.lg-page .lg-flash--ok { background: var(--app-ok-tint, #ecfdf5); border-color: var(--app-ok-line, #a7f3d0); color: var(--app-ok-text, #047857); }
+.lg-page .lg-flash--err { background: var(--app-risk-tint, #fef2f2); border-color: var(--app-risk-line, #fecaca); color: var(--app-risk-text, #b91c1c); }
+
+/* KPI — جريدينت كامل + نص أبيض (نفس كروت الرئيسية) */
+.lg-page .lg-kpi { --a: #1d4ed8; --c: #2563eb; position: relative; isolation: isolate; overflow: hidden; padding: 16px; border-radius: 18px;
+  background: linear-gradient(135deg, var(--a), var(--c)); border: 0; color: #fff; box-shadow: 0 10px 22px -14px color-mix(in srgb, var(--c) 85%, transparent); }
+.lg-page .lg-kpi::after { content: ""; position: absolute; z-index: -1; width: 120px; height: 120px; border-radius: 50%; inset-inline-end: -36px; top: -44px; background: rgba(255,255,255,.12); pointer-events: none; }
+.lg-page .lg-kpi--indigo { --a: #4338ca; --c: #4f46e5; }
+.lg-page .lg-kpi--rose { --a: #be123c; --c: #e11d48; }
+.lg-page .lg-kpi--green { --a: #047857; --c: #059669; }
+.lg-page .lg-kpi--amber { --a: #b45309; --c: #d97706; }
+.lg-page .lg-kpi div, .lg-page .lg-kpi span { color: #fff; }
+.lg-page .lg-kpi__l { color: rgba(255,255,255,.92); }
+.lg-page .lg-kpi__v { color: #fff; }
+.lg-page .lg-kpi__v span { color: rgba(255,255,255,.85); }
+.lg-page .lg-kpi__ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3); }
+.lg-page .lg-kpi__ic svg { color: #fff; }
+
+/* اللوحة الرئيسية */
+.lg-page .lg-panel { background: var(--app-card); border: 1px solid var(--app-border); border-radius: 18px; box-shadow: var(--app-shadow-card, 0 1px 2px rgba(15,23,42,.05)); }
+
+/* التبويبات */
+.lg-page .lg-tab { --tc: #2563eb; background: var(--app-card-secondary, var(--app-card)); color: var(--app-text); border: 1px solid var(--app-border); cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
+.lg-page .lg-tab--cases { --tc: #2563eb; }
+.lg-page .lg-tab--delinquents { --tc: #dc2626; }
+.lg-page .lg-tab--notices { --tc: #d97706; }
+.lg-page .lg-tab--checks { --tc: #059669; }
+.lg-page .lg-tab--templates { --tc: #7c3aed; }
+.lg-page .lg-tab__ic { color: var(--tc); }
+.lg-page .lg-tab:hover { background: color-mix(in srgb, var(--tc) 9%, var(--app-card)); border-color: color-mix(in srgb, var(--tc) 40%, var(--app-border)); }
+.lg-page .lg-tab.is-on { background: var(--tc); border-color: var(--tc); color: #fff; box-shadow: 0 8px 18px -10px var(--tc); }
+.lg-page .lg-tab.is-on .lg-tab__ic { color: #fff; }
+
+/* حقول البحث والفلاتر */
+.lg-page .lg-input, .lg-page .lg-modal input, .lg-page .lg-modal select, .lg-page .lg-modal textarea {
+  background: var(--app-card-secondary, var(--app-card)); color: var(--app-text); border: 1px solid var(--app-border); outline: none;
+}
+.lg-page .lg-input:focus, .lg-page .lg-modal input:focus, .lg-page .lg-modal select:focus, .lg-page .lg-modal textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.2); }
+.lg-page .lg-input::placeholder, .lg-page .lg-modal ::placeholder { color: var(--app-text-muted); font-weight: 600; }
+.lg-page .lg-search-ic { color: var(--app-text-muted); pointer-events: none; }
+
+/* مبدّل القطاع */
+.lg-page .lg-seg { background: var(--app-card-secondary, var(--app-card)); border: 1px solid var(--app-border); }
+.lg-page .lg-seg__b { background: transparent; color: var(--app-text-muted); border: 1px solid transparent; }
+.lg-page .lg-seg__b:hover { color: var(--app-text); }
+.lg-page .lg-seg__b--home.is-on { background: #2563eb; color: #fff; }
+.lg-page .lg-seg__b--elec.is-on { background: #0284c7; color: #fff; }
+
+/* بيلز الحالة */
+.lg-page .lg-pill { background: var(--app-card); color: var(--app-text-muted); border: 1px solid var(--app-border); cursor: pointer; }
+.lg-page .lg-pill:hover { background: var(--app-card-hover, var(--app-card-secondary)); color: var(--app-text); }
+.lg-page .lg-pill.is-on { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+/* حالة الملف (StatusPill) */
+.lg-page .lg-st { --sc: #64748b; display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 9px; font-size: 11px; font-weight: 800; white-space: nowrap;
+  color: color-mix(in srgb, var(--sc) 78%, var(--app-text)); background: color-mix(in srgb, var(--sc) 14%, transparent); border: 1px solid color-mix(in srgb, var(--sc) 36%, transparent); }
+.lg-page .lg-st--warn { --sc: #d97706; }
+.lg-page .lg-st--info { --sc: #2563eb; }
+.lg-page .lg-st--prog { --sc: #4f46e5; }
+.lg-page .lg-st--sched { --sc: #7c3aed; }
+.lg-page .lg-st--ok { --sc: #059669; }
+.lg-page .lg-st--risk { --sc: #dc2626; }
+.lg-page .lg-st--muted { --sc: #64748b; }
+
+/* كارت الملف */
+.lg-page .lg-case { --cc: #2563eb; display: block; border-radius: 16px; cursor: pointer;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--cc) 8%, var(--app-card)), var(--app-card) 65%);
+  border: 1px solid color-mix(in srgb, var(--cc) 24%, var(--app-border)); border-inline-start: 5px solid var(--cc);
+  transition: border-color .15s ease, box-shadow .15s ease; }
+.lg-page .lg-case[data-tone='warn'] { --cc: #d97706; }
+.lg-page .lg-case[data-tone='info'] { --cc: #2563eb; }
+.lg-page .lg-case[data-tone='prog'] { --cc: #4f46e5; }
+.lg-page .lg-case[data-tone='sched'] { --cc: #7c3aed; }
+.lg-page .lg-case[data-tone='ok'] { --cc: #059669; }
+.lg-page .lg-case[data-tone='risk'] { --cc: #dc2626; }
+.lg-page .lg-case[data-tone='muted'] { --cc: #64748b; }
+.lg-page .lg-case:hover { border-color: color-mix(in srgb, var(--cc) 55%, var(--app-border)); }
+.lg-page .lg-case.is-on { background: color-mix(in srgb, var(--cc) 13%, var(--app-card)); border-color: var(--cc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc) 22%, transparent); }
+.lg-page .lg-mini { --a: #be123c; --c: #e11d48; position: relative; overflow: hidden; border-radius: 10px; background: linear-gradient(135deg, var(--a), var(--c)); border: 0; color: #fff; }
+.lg-page .lg-mini--debt { --a: #be123c; --c: #e11d48; }
+.lg-page .lg-mini--late { --a: #b45309; --c: #d97706; }
+.lg-page .lg-mini--guar { --a: #0f766e; --c: #0d9488; }
+.lg-page .lg-mini .lg-mini__l { color: rgba(255,255,255,.9); }
+.lg-page .lg-mini .lg-mini__v { color: #fff; }
+.lg-page .lg-note { background: color-mix(in srgb, #d97706 10%, transparent); border: 1px solid color-mix(in srgb, #d97706 28%, transparent); color: var(--app-text); }
+
+/* التفاصيل */
+.lg-page .lg-detail { border-radius: 18px; background: var(--app-card); border: 1px solid var(--app-border); border-top: 4px solid #2563eb; }
+.lg-page .lg-box { background: var(--app-card-secondary, var(--app-card)); border: 1px solid var(--app-border); }
+.lg-page .lg-empty { background: var(--app-card-secondary, var(--app-card)); border: 1px dashed var(--app-border); color: var(--app-text-muted); }
+
+/* أزرار */
+.lg-page .lg-btn { cursor: pointer; border: 1px solid transparent; transition: background-color .15s ease; }
+.lg-page .lg-btn--pri { background-image: linear-gradient(135deg, #0b2230, #12395a); border-color: #12395a; color: #fff; }
+.lg-page .lg-btn--pri:hover { background-image: linear-gradient(135deg, #12395a, #1a4d7a); }
+.lg-page .lg-btn--gold { background: #f59e0b; border-color: #f59e0b; color: #1c1300; }
+.lg-page .lg-btn--gold:hover { background: #fbbf24; }
+.lg-page .lg-btn--soft { background: color-mix(in srgb, #d97706 14%, transparent); border-color: color-mix(in srgb, #d97706 38%, transparent); color: var(--app-warn-text, #b45309); }
+html.dark .lg-page .lg-btn--soft { color: #fde68a; }
+.lg-page .lg-btn--ghost { background: var(--app-card); border-color: var(--app-border); color: var(--app-text); }
+.lg-page .lg-btn--ghost:hover { background: var(--app-card-hover, var(--app-card-secondary)); }
+
+/* الجداول */
+.lg-page .lg-tablewrap { border: 1px solid var(--app-border); background: var(--app-card); }
+.lg-page .lg-thead { background: color-mix(in srgb, #2563eb 10%, var(--app-card-secondary, var(--app-card))); color: var(--app-text); border-bottom: 2px solid #2563eb; }
+.lg-page .lg-tbody > tr { border-bottom: 1px solid var(--app-border); }
+.lg-page .lg-tr:hover { background: color-mix(in srgb, #2563eb 6%, transparent); }
+
+/* النماذج */
+.lg-page .lg-tpl { --tp: #d97706; border-radius: 18px; background: linear-gradient(165deg, color-mix(in srgb, var(--tp) 9%, var(--app-card)), var(--app-card) 65%); border: 1px solid color-mix(in srgb, var(--tp) 26%, var(--app-border)); border-top: 4px solid var(--tp); }
+.lg-page .lg-tpl--amber { --tp: #d97706; } .lg-page .lg-tpl--blue { --tp: #2563eb; } .lg-page .lg-tpl--navy { --tp: #0d9488; }
+.lg-page .lg-tpl__ic { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: color-mix(in srgb, var(--tp) 16%, transparent); color: var(--tp); border: 1px solid color-mix(in srgb, var(--tp) 32%, transparent); }
+html.dark .lg-page .lg-tpl__ic { color: color-mix(in srgb, var(--tp) 55%, #fff); }
+.lg-page .lg-chipnote { background: var(--app-card); border: 1px solid var(--app-border); color: var(--app-text); }
+
+/* النوافذ */
+.lg-page .lg-modal { background: var(--app-card); color: var(--app-text); border: 1px solid var(--app-border); border-top: 4px solid #2563eb; box-shadow: 0 30px 60px -20px rgba(2,8,23,.6); }
+.lg-page .lg-modal label { color: var(--app-text); }
+.lg-page .lg-modal .lg-btn--pri { color: #fff; }
+.lg-page .lg-modal [class*='bg-slate-50'] { background: var(--app-card-secondary, var(--app-card)); border-color: var(--app-border); }

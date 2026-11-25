@@ -1,0 +1,450 @@
+/* ==========================================================================
+   KPI CARD — الشكل الموحّد لكل كروت المؤشرات
+   --------------------------------------------------------------------------
+   كارت بتدرّج ملوّن كامل ونص أبيض. الألوان كلها من توكنز --kpi-* في
+   theme-tokens.css (نفس القيم في الوضعين النهاري والليلي).
+   قواعد:
+     • بدون !important — الملف بيتحمّل آخر ملف في main.tsx فبيكسب بالترتيب.
+     • بدون backdrop-filter / blur وبدون أنيميشن لا نهائي.
+     • كل عنصر نص ظاهر مع اللون (مش اللون لوحده) — الإتاحة.
+   ========================================================================== */
+
+.kpi-card {
+  /* افتراضي = نغمة المبيعات، وكل موديفاير بيغيّر الثلاثة مع بعض */
+  --c: var(--kpi-sales, #2563eb);
+  --a: var(--kpi-sales-a, #1d4ed8);
+  --b: var(--kpi-sales-b, #60a5fa);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  min-height: 0;
+  justify-content: flex-start;
+  padding: 10px 11px;
+  border: 0;
+  border-radius: 13px;
+  background: linear-gradient(135deg, var(--a), var(--c));
+  box-shadow: 0 6px 16px -8px var(--c);
+  color: #ffffff;
+  text-align: start;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.kpi-card--sales {
+  --c: var(--kpi-sales, #2563eb);
+  --a: var(--kpi-sales-a, #1d4ed8);
+  --b: var(--kpi-sales-b, #60a5fa);
+}
+.kpi-card--collection {
+  --c: var(--kpi-collection, #059669);
+  --a: var(--kpi-collection-a, #047857);
+  --b: var(--kpi-collection-b, #34d399);
+}
+.kpi-card--due {
+  --c: var(--kpi-due, #0891b2);
+  --a: var(--kpi-due-a, #0e7490);
+  --b: var(--kpi-due-b, #22d3ee);
+}
+.kpi-card--debt {
+  --c: var(--kpi-debt, #e11d48);
+  --a: var(--kpi-debt-a, #be123c);
+  --b: var(--kpi-debt-b, #fb7185);
+}
+.kpi-card--warn {
+  --c: var(--kpi-warn, #d97706);
+  --a: var(--kpi-warn-a, #b45309);
+  --b: var(--kpi-warn-b, #fbbf24);
+}
+.kpi-card--promo {
+  --c: var(--kpi-promo, #7c3aed);
+  --a: var(--kpi-promo-a, #6d28d9);
+  --b: var(--kpi-promo-b, #a78bfa);
+}
+.kpi-card--visits {
+  --c: var(--kpi-visits, #7c3aed);
+  --a: var(--kpi-visits-a, #6d28d9);
+  --b: var(--kpi-visits-b, #a78bfa);
+}
+
+/* إضاءة ناعمة أعلى الكارت + الدائرة الزخرفية الشفافة في الزاوية */
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  inset-block-start: -55%;
+  inset-inline-end: -25%;
+  width: 78%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.kpi-card::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -52px;
+  inset-inline-start: -44px;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.13);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.kpi-card > * {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+/* ---------- الرأس: العنوان + الأيقونة ---------- */
+.kpi-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kpi-card__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #ffffff;
+  text-wrap: balance;
+}
+
+.kpi-card__icon {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.kpi-card__icon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+/* ---------- الرقم ---------- */
+.kpi-card__value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-card__number {
+  font-size: clamp(1rem, 3.6vw, 1.25rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.3px;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.kpi-card__unit {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.88);
+  white-space: nowrap;
+}
+
+/* ---------- السطر التوضيحي ---------- */
+.kpi-card__meta {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+/* ---------- شريط التقدم ---------- */
+.kpi-card__progress {
+  position: relative;
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.kpi-card__progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #ffffff;
+}
+
+/* ---------- الفوتر: الشارة ---------- */
+.kpi-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 2px;
+}
+
+.kpi-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.5;
+  color: #ffffff;
+  white-space: normal;
+  text-align: start;
+  overflow-wrap: break-word;
+}
+
+.kpi-card__chevron {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  opacity: 0.9;
+}
+
+/* ---------- لما الكارت يبقى قابل للضغط ---------- */
+.kpi-card--action {
+  font: inherit;
+  cursor: pointer;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.kpi-card--action:hover {
+  box-shadow: 0 10px 22px -10px var(--c);
+}
+
+.kpi-card--action:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* ---------- الشبكة: عمودين على الموبايل ---------- */
+.kpi-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .kpi-cards {
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .kpi-cards--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* حاوية بطاقات القطاعات (منزلي / كهرباء) — عمودين على الشاشات الكبيرة */
+.kpi-sectors {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .kpi-sectors--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* على الشاشات الضيقة جدًا: البادينج والخط يصغروا بدل ما الكارت يتقص */
+@media (max-width: 380px) {
+  .kpi-card {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .kpi-card__label {
+    font-size: 11.5px;
+  }
+
+  .kpi-card__icon {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+    border-radius: 10px;
+  }
+
+  .kpi-card__badge {
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+}
+
+/* الوضع الليلي: نفس التدرّج (النص أبيض) — بس ظل أعمق شوية فوق الخلفية الغامقة */
+html.dark .kpi-card {
+  box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-card--action {
+    transition: none;
+  }
+}
+
+/* ==========================================================================
+   تبويبات لوحة التحكم (ملخص اليوم / الأداء / الأنشطة)
+   - النشط: تدرّج أزرق + نص أبيض + ظل خفيف
+   - غير النشط: نص هادي وخلفية شفافة بدون أي إطار أو ظل داخلي
+   - الموبايل: سكرول أفقي مع snap، والديسكتوب: التلاتة متساويين
+   ========================================================================== */
+.dash-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dash-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.dash-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--app-text-muted);
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.dash-tab svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.dash-tab:hover {
+  color: var(--app-text);
+}
+
+.dash-tab.is-active {
+  color: #ffffff;
+  background-image: linear-gradient(135deg, #1d4ed8, #2563eb);
+  box-shadow: 0 6px 14px -8px rgba(37, 99, 235, 0.65);
+}
+
+html.dark .dash-tab.is-active {
+  color: #ffffff;
+}
+
+@media (min-width: 640px) {
+  .dash-tabs {
+    gap: 8px;
+    overflow-x: visible;
+    scroll-snap-type: none;
+  }
+
+  .dash-tab {
+    flex: 1 1 0;
+    min-height: 42px;
+    font-size: 12.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-tab {
+    transition: none;
+  }
+}
+
+/* ==========================================================================
+   نسخة مضغوطة من الكارت — للإحصائيات الصغيرة جوه كروت العملاء
+   (نفس النغمة والتدرّج والنص الأبيض، بس حشو وأيقونة وخط أصغر)
+   ========================================================================== */
+.kpi-card--compact {
+  min-height: 0;
+  gap: 5px;
+  padding: 10px 11px;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px -8px var(--c);
+}
+
+.kpi-card--compact .kpi-card__label {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.kpi-card--compact .kpi-card__icon {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+  border-radius: 8px;
+}
+
+.kpi-card--compact .kpi-card__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.kpi-card--compact .kpi-card__value {
+  gap: 2px;
+}
+
+.kpi-card--compact .kpi-card__number {
+  font-size: clamp(0.95rem, 3.4vw, 1.2rem);
+  letter-spacing: -0.2px;
+}
+
+.kpi-card--compact .kpi-card__unit {
+  font-size: 10px;
+}
+
+.kpi-card--compact .kpi-card__meta {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.kpi-card--compact::after {
+  width: 84px;
+  height: 84px;
+  inset-block-end: -34px;
+  inset-inline-start: -28px;
+}
+

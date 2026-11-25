@@ -1,0 +1,242 @@
+/* ==========================================================================
+   كارت الطلب في «أوامر البيع والاعتمادات» — Light Premium + ليلي مطابق
+   هيدر ملوّن بلون المرحلة (اسم العميل · رقم الطلب · المندوب · الفرع · التاريخ)
+   + جسم بالمبلغ وشريط المراحل والأزرار. تغيير شكل فقط.
+   ألوان الحالات ثابتة: مشرف #0D9488 · إدارة #2563EB · تجهيز #7C3AED
+   توصيل #D97706 · إغلاق #059669 · إلغاء #DC2626
+   الأسطح من توكنز --app-* فبتقلب نهاري/ليلي، وبدون !important.
+   ========================================================================== */
+.tg-card.ord-card {
+  --st: #2563eb;
+  --sa: #1d4ed8;
+  --role: var(--st);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-top: 4px solid var(--st);
+  border-radius: 16px;
+  background-color: var(--app-card);
+  background-image: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 22px -14px rgba(15, 23, 42, 0.25);
+}
+.ord-card[data-stage='supervisor'] { --st: #0d9488; --sa: #0f766e; }
+.ord-card[data-stage='admin']      { --st: #2563eb; --sa: #1d4ed8; }
+.ord-card[data-stage='prep']       { --st: #7c3aed; --sa: #6d28d9; }
+.ord-card[data-stage='delivery']   { --st: #d97706; --sa: #b45309; }
+.ord-card[data-stage='closed']     { --st: #059669; --sa: #047857; }
+.ord-card[data-stage='cancelled']  { --st: #dc2626; --sa: #b91c1c; }
+
+/* ---------- الهيدر الملوّن ---------- */
+.ord-hd {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, var(--sa), var(--st));
+  color: #ffffff;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ord-hd::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -44px;
+  inset-inline-start: -32px;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.13);
+  pointer-events: none;
+  z-index: -1;
+}
+.ord-hd__r1 { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ord-av {
+  display: grid; place-items: center;
+  width: 38px; height: 38px; flex: 0 0 38px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 15px; font-weight: 800; color: #ffffff;
+}
+.ord-hd__main { flex: 1 1 auto; min-width: 0; }
+.ord-hd__name {
+  font-size: 15px; font-weight: 800; line-height: 1.3; color: #ffffff;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ord-hd__no {
+  margin-top: 2px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px; font-weight: 700; color: rgba(255, 255, 255, 0.88);
+  text-align: start;
+}
+.ord-badge {
+  flex: 0 0 auto; display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #ffffff; font-size: 10.5px; font-weight: 800; line-height: 1.5; white-space: nowrap;
+}
+.ord-hd__toggle {
+  flex: 0 0 auto; display: grid; place-items: center;
+  width: 32px; height: 32px; padding: 0;
+  border-radius: 10px; border: 0; box-shadow: none;
+  background: rgba(255, 255, 255, 0.2); color: #ffffff; cursor: pointer;
+}
+.ord-hd__toggle:hover { background: rgba(255, 255, 255, 0.3); }
+.ord-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ord-chips > span {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff; font-size: 11px; font-weight: 700; line-height: 1.5;
+}
+
+/* ---------- الجسم ---------- */
+.ord-bd { display: flex; flex-direction: column; gap: 14px; padding: 14px; }
+.ord-am { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ord-am span { font-size: 11.5px; font-weight: 700; color: var(--app-text-muted); }
+.ord-am b {
+  font-size: 19px; font-weight: 800; color: var(--app-text);
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+
+/* ---------- شريط المراحل ---------- */
+.ord-trk { display: flex; margin: 0; padding: 0; list-style: none; }
+.ord-n {
+  --c: #94a3b8;
+  position: relative; flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.ord-n[data-k='supervisor'] { --c: #0d9488; }
+.ord-n[data-k='admin']      { --c: #2563eb; }
+.ord-n[data-k='prep']       { --c: #7c3aed; }
+.ord-n[data-k='delivery']   { --c: #d97706; }
+.ord-n[data-k='closed']     { --c: #059669; }
+.ord-n:not(:last-child)::after {
+  content: ""; position: absolute; top: 11px;
+  inset-inline-start: 50%; width: 100%; height: 2px;
+  background: var(--app-border); z-index: 0;
+}
+.ord-n.is-done:not(:last-child)::after { background: var(--c); }
+.ord-dot {
+  position: relative; z-index: 1;
+  display: grid; place-items: center; width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--app-border);
+  background: var(--app-card); color: var(--app-text-muted);
+  font-size: 11px; font-weight: 800;
+}
+.ord-n.is-done .ord-dot { background: var(--c); border-color: var(--c); color: #ffffff; }
+.ord-n.is-now .ord-dot {
+  border-color: var(--c); color: var(--c);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 20%, transparent);
+}
+.ord-nl {
+  font-size: 10.5px; font-weight: 700; line-height: 1.25; text-align: center;
+  color: var(--app-text-muted);
+}
+.ord-n.is-now .ord-nl { color: var(--c); font-weight: 800; }
+html.dark .ord-n.is-now .ord-nl { color: color-mix(in srgb, var(--c) 60%, #ffffff); }
+.ord-cancelled {
+  display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 8px;
+  background: color-mix(in srgb, #dc2626 14%, transparent);
+  border: 1px solid color-mix(in srgb, #dc2626 40%, transparent);
+  color: #dc2626; font-size: 11px; font-weight: 800;
+}
+html.dark .ord-cancelled { color: #fca5a5; }
+
+/* ---------- الأزرار ---------- */
+.ord-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 38px; padding: 8px 14px; border-radius: 10px;
+  border: 1px solid var(--app-border);
+  background-color: var(--app-card-secondary, var(--app-card));
+  color: var(--app-text);
+  font-size: 12px; font-weight: 800; line-height: 1.2;
+  box-shadow: none; cursor: pointer; white-space: nowrap;
+  transition: filter 0.14s ease, background-color 0.14s ease;
+}
+.ord-btn:hover { background-color: var(--app-card-hover, var(--app-card-secondary)); }
+.ord-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ord-btn--primary {
+  border-color: var(--st); background: var(--st); color: #ffffff;
+  box-shadow: 0 5px 12px -6px var(--st);
+}
+.ord-btn--primary:hover { background: var(--st); filter: brightness(1.08); }
+.ord-btn--danger {
+  border-color: color-mix(in srgb, #dc2626 38%, var(--app-border));
+  background: transparent; color: #dc2626;
+}
+.ord-btn--danger:hover { background: color-mix(in srgb, #dc2626 10%, transparent); }
+html.dark .ord-btn--danger { color: #fca5a5; }
+
+/* ---------- زرار عرض بنود الفاتورة ---------- */
+.ord-items-btn {
+  width: 100%; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid var(--app-border);
+  background-color: var(--app-card-secondary, var(--app-card));
+  color: var(--app-text-muted);
+  font-size: 12px; font-weight: 800; box-shadow: none; cursor: pointer;
+}
+.ord-items-btn:hover { color: var(--app-text); background-color: var(--app-card-hover, var(--app-card-secondary)); }
+
+/* ---------- موبايل ---------- */
+@media (max-width: 420px) {
+  .ord-bd { padding: 12px; gap: 12px; }
+  .ord-hd { padding: 11px 12px; }
+  .ord-hd__name { font-size: 14px; }
+  .ord-nl { display: none; }
+  .ord-n.is-now .ord-nl { display: block; position: absolute; top: 30px; white-space: nowrap; }
+  .ord-trk { padding-bottom: 16px; }
+  .ord-btn { flex: 1 1 auto; }
+}
+@media (min-width: 1024px) {
+  .ord-bd { padding: 16px; }
+}
+
+
+/* ==========================================================================
+   تحديث W — قائمة كارتين + تلوين جسم الكارت بلون المرحلة (نهاري/ليلي)
+   ========================================================================== */
+.ord-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.ord-list > :not(.ord-card) { grid-column: 1 / -1; }
+.ord-list > .ord-card { min-width: 0; }
+@media (min-width: 1280px) {
+  .ord-list { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .ord-list > .ord-card.is-open { grid-column: 1 / -1; }
+  .ord-list > .ord-card:not(.is-open) .ord-btn { padding: 8px 10px; font-size: 11.5px; }
+  .ord-list > .ord-card:not(.is-open) .ord-nl { font-size: 10px; }
+}
+
+/* جسم الكارت متدرّج بلون المرحلة */
+.ord-card .ord-bd {
+  background-image: linear-gradient(180deg,
+    color-mix(in srgb, var(--st) 10%, var(--app-card)) 0%,
+    var(--app-card) 78%);
+}
+/* شريط الإجمالي */
+.ord-card .ord-am {
+  align-items: center; padding: 10px 12px; border-radius: 12px;
+  background: color-mix(in srgb, var(--st) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--st) 30%, transparent);
+  border-inline-start: 4px solid var(--st);
+}
+.ord-card .ord-am span { color: color-mix(in srgb, var(--st) 55%, var(--app-text-muted)); }
+.ord-card .ord-am b { color: color-mix(in srgb, var(--st) 70%, var(--app-text)); font-size: 20px; }
+html.dark .ord-card .ord-am b { color: color-mix(in srgb, var(--st) 45%, #ffffff); }
+html.dark .ord-card .ord-am span { color: color-mix(in srgb, var(--st) 40%, #cbd5e1); }
+/* الأزرار الثانوية والعرض */
+.ord-card .ord-btn--ghost {
+  border-color: color-mix(in srgb, var(--st) 34%, var(--app-border));
+  background-color: color-mix(in srgb, var(--st) 7%, var(--app-card));
+}
+.ord-card .ord-btn--ghost:hover { background-color: color-mix(in srgb, var(--st) 14%, var(--app-card)); }
+.ord-card .ord-items-btn {
+  border: 1px dashed color-mix(in srgb, var(--st) 45%, var(--app-border));
+  background-color: color-mix(in srgb, var(--st) 7%, var(--app-card));
+  color: color-mix(in srgb, var(--st) 65%, var(--app-text));
+}
+html.dark .ord-card .ord-items-btn { color: color-mix(in srgb, var(--st) 40%, #e2e8f0); }
+.ord-card .ord-items-btn:hover { background-color: color-mix(in srgb, var(--st) 15%, var(--app-card)); }

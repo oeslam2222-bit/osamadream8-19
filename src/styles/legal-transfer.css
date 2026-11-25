@@ -1,0 +1,91 @@
+/* ==========================================================================
+   legal-transfer.css — نافذة «إحالة العميل للشؤون القانونية»
+   نهاري + ليلي من توكنز --app-*، ألوان الأسباب: هارب أحمر · متعثر عنبري · مخالفة بنفسجي.
+   ========================================================================== */
+.lg-overlay { background: rgba(2, 8, 23, .7); backdrop-filter: blur(3px); }
+.lg-modal {
+  width: 100%; max-width: 32rem; max-height: calc(100vh - 24px); overflow-y: auto;
+  border-radius: 22px; background: var(--app-card); border: 1px solid var(--app-border);
+  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .6);
+}
+
+/* الهيدر */
+.lg-hd {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px;
+  background-image: linear-gradient(135deg, #0b2230, #12395a);
+  border-bottom: 3px solid #f59e0b; color: #fff;
+}
+.lg-hd__main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.lg-hd__ico { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; flex: 0 0 auto; background: rgba(245, 158, 11, .18); border: 1px solid rgba(245, 158, 11, .5); color: #fbbf24; }
+.lg-hd__title { margin: 0; font-size: 16px; font-weight: 800; color: #fff; line-height: 1.35; }
+.lg-hd__sub { margin: 2px 0 0; font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .8); }
+.lg-hd__sub strong { color: #fff; font-weight: 800; }
+.lg-modal .lg-x {
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; flex: 0 0 auto; cursor: pointer;
+  background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .25); color: #fff; padding: 0;
+}
+.lg-modal .lg-x:hover { background: rgba(255, 255, 255, .22); }
+
+/* الجسم */
+.lg-bd { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px 18px; }
+
+.lg-sum { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.lg-sum__c { display: flex; flex-direction: column; gap: 2px; padding: 11px 13px; border-radius: 13px; border: 1px solid; border-top-width: 3px; }
+.lg-sum__c--debt { --c: #ef4444; }
+.lg-sum__c--over { --c: #f59e0b; }
+.lg-sum__c { border-color: color-mix(in srgb, var(--c) 32%, var(--app-border)); border-top-color: var(--c); background: color-mix(in srgb, var(--c) 8%, var(--app-card)); }
+.lg-sum__l { font-size: 11.5px; font-weight: 700; color: var(--app-text-muted); }
+.lg-sum__v { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lg-sum__c--debt .lg-sum__v { color: var(--app-danger-text); }
+.lg-sum__c--over .lg-sum__v { color: var(--app-warning-text); }
+
+.lg-opts__t { margin: 0 0 8px; font-size: 12.5px; font-weight: 800; color: var(--app-text); }
+.lg-opts__list { display: flex; flex-direction: column; gap: 8px; }
+
+.lg-modal .lg-opt {
+  --c: #d97706;
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: start; cursor: pointer;
+  padding: 12px 13px; border-radius: 14px; font: inherit;
+  background: var(--app-card); color: var(--app-text);
+  border: 1px solid var(--app-border); border-inline-start: 4px solid color-mix(in srgb, var(--c) 55%, var(--app-border));
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.lg-opt--risk { --c: #ef4444; }
+.lg-opt--warn { --c: #f59e0b; }
+.lg-opt--viol { --c: #8b5cf6; }
+.lg-modal .lg-opt:hover { background: color-mix(in srgb, var(--c) 6%, var(--app-card)); }
+.lg-modal .lg-opt.is-on { background: color-mix(in srgb, var(--c) 12%, var(--app-card)); border-color: var(--c); }
+.lg-opt__emoji { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto; font-size: 22px; background: color-mix(in srgb, var(--c) 14%, transparent); }
+.lg-opt__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.lg-opt__label { font-size: 13.5px; font-weight: 800; color: var(--app-text); }
+.lg-opt__reason { font-size: 11.5px; font-weight: 600; line-height: 1.55; color: var(--app-text-muted); }
+.lg-opt__tick { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; flex: 0 0 auto; border: 2px solid var(--app-border); color: #fff; }
+.lg-opt.is-on .lg-opt__tick { background: var(--c); border-color: var(--c); }
+
+.lg-note {
+  display: flex; align-items: flex-start; gap: 9px; padding: 11px 13px; border-radius: 13px;
+  font-size: 12px; font-weight: 700; line-height: 1.65;
+  background: color-mix(in srgb, #f59e0b 11%, var(--app-card));
+  border: 1px solid color-mix(in srgb, #f59e0b 38%, var(--app-border));
+  color: var(--app-warning-text);
+}
+.lg-note svg { margin-top: 2px; }
+
+.lg-ft { display: flex; gap: 8px; }
+.lg-modal .lg-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 46px;
+  padding: 0 16px; border-radius: 13px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
+}
+.lg-modal .lg-btn--primary {
+  flex: 1 1 auto; color: #fff; border: 1px solid #12395a;
+  background-image: linear-gradient(135deg, #0b2230, #12395a);
+}
+.lg-modal .lg-btn--primary svg { color: #fbbf24; }
+.lg-modal .lg-btn--primary:hover { background-image: linear-gradient(135deg, #12395a, #1a4d7a); }
+.lg-modal .lg-btn--ghost { color: var(--app-text); background: var(--app-card); border: 1px solid var(--app-border); }
+.lg-modal .lg-btn--ghost:hover { background: var(--app-card-hover); }
+
+@media (max-width: 420px) {
+  .lg-sum { grid-template-columns: 1fr; }
+  .lg-hd__title { font-size: 15px; }
+}

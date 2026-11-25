@@ -1,0 +1,79 @@
+/* ==========================================================================
+   returns-polish.css — كروت المرتجعات بنفس لغة كروت التحصيل/العملاء
+   لون المرتجع = لون المرحلة (--st/--sa) على الهيدر والحدود والصناديق:
+   بانتظار/عند العميل عنبري · في الإجراء أزرق · بالمخزن بنفسجي · مغلق أخضر · مرفوض أحمر
+   نهاري + ليلي من توكنز --app-*، بدون !important.
+   ========================================================================== */
+.rt-card { --st: #d97706; --sa: #b45309; }
+.rt-card[data-st='pending']   { --st: #d97706; --sa: #b45309; }
+.rt-card[data-st='process']   { --st: #2563eb; --sa: #1d4ed8; }
+.rt-card[data-st='warehouse'] { --st: #7c3aed; --sa: #6d28d9; }
+.rt-card[data-st='closed']    { --st: #059669; --sa: #047857; }
+.rt-card[data-st='rejected']  { --st: #dc2626; --sa: #b91c1c; }
+
+/* الكارت نفسه */
+.cr-page .ret-card.rt-card[data-tone] {
+  padding: 0; overflow: hidden; border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--st) 30%, var(--app-border));
+  border-inline-start: 1px solid color-mix(in srgb, var(--st) 30%, var(--app-border));
+  background-color: color-mix(in srgb, var(--st) 4%, var(--app-card));
+  background-image: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 12px 24px -16px color-mix(in srgb, var(--st) 55%, transparent);
+}
+.cr-page .ret-card.rt-card[data-tone]::after { display: none; }
+.cr-page .ret-card.rt-card[data-tone]:hover { border-color: color-mix(in srgb, var(--st) 60%, var(--app-border)); }
+html.dark .cr-page .ret-card.rt-card[data-tone] { background-color: color-mix(in srgb, var(--st) 7%, var(--app-card)); box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 14px 28px -18px rgba(0,0,0,.6); }
+
+/* الهيدر الملون */
+.rt-hd {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px; color: #fff;
+  background-image: linear-gradient(135deg, var(--sa), var(--st));
+}
+.rt-hd__main { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 320px; }
+.rt-hd__ico { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; flex: 0 0 auto; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35); color: #fff; }
+.rt-hd__id { min-width: 0; flex: 1 1 auto; }
+.rt-hd__row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.rt-hd__name { font-size: 15.5px; font-weight: 800; line-height: 1.35; color: #fff; overflow-wrap: anywhere; }
+.rt-hd__code { padding: 0 7px; border-radius: 6px; background: rgba(255,255,255,.18); font: 700 11px/1.7 ui-monospace, monospace; color: #fff; white-space: nowrap; }
+.rt-badge { padding: 1px 10px; border-radius: 999px; background: rgba(255,255,255,.22); border: 1px solid rgba(255,255,255,.4); font-size: 11px; font-weight: 800; color: #fff; white-space: nowrap; }
+.rt-geo { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 800; background: rgba(255,255,255,.22); color: #fff; }
+.rt-geo--ok { background: #dcfce7; color: #166534; }
+.rt-geo--warn { background: #fef3c7; color: #92400e; }
+.rt-geo--risk { background: #fee2e2; color: #991b1b; }
+.rt-hd__meta { display: flex; flex-wrap: wrap; gap: 3px 8px; margin-top: 4px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,.88); }
+.rt-hd__meta strong { font-weight: 800; color: #fff; }
+.rt-val { flex: 0 0 auto; padding: 7px 14px; border-radius: 12px; background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.22); text-align: right; }
+.rt-val__l { font-size: 10.5px; font-weight: 700; color: rgba(255,255,255,.85); }
+.rt-val__n { font-size: 18px; font-weight: 800; line-height: 1.3; color: #fff; }
+
+/* الجسم */
+.rt-bd { padding: 14px; }
+.rt-box {
+  --bc: var(--st);
+  padding: 12px; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--bc) 28%, var(--app-border));
+  border-top: 3px solid var(--bc);
+  background: color-mix(in srgb, var(--bc) 6%, var(--app-card));
+}
+.rt-box--contact { --bc: #0ea5e9; }
+.rt-box__t { color: var(--app-text); }
+.rt-box__t svg { color: var(--bc); }
+
+/* الفوتر */
+.rt-ft { border-top: 1px dashed var(--app-border); }
+.rt-ft__st { display: inline-block; padding: 1px 10px; border-radius: 999px; font-weight: 800;
+  background: color-mix(in srgb, var(--st) 14%, transparent);
+  color: color-mix(in srgb, var(--sa) 78%, var(--app-text)); }
+.rt-print { background: var(--app-card); border: 1px solid var(--app-border); color: var(--app-text); }
+.rt-print:hover { background: color-mix(in srgb, var(--st) 10%, var(--app-card)); border-color: color-mix(in srgb, var(--st) 45%, var(--app-border)); }
+
+/* الفلاتر: منع تداخل البحث مع زراير القطاع */
+.rt-search { flex: 1 1 240px; max-width: 360px; }
+.rt-search input { width: 100%; max-width: 100%; box-sizing: border-box; }
+
+@media (max-width: 640px) {
+  .rt-hd { padding: 12px; }
+  .rt-val { width: 100%; display: flex; align-items: baseline; justify-content: space-between; }
+  .rt-bd { padding: 12px; }
+}

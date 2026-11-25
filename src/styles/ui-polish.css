@@ -1,0 +1,51 @@
+/* ==========================================================================
+   تنسيقات موحّدة لـ: كروت التارجت · مزامنة معلّقة · الإعدادات
+   بدون !important، وكل الألوان من توكنز --app-* و --kpi-* (نهاري/ليلي).
+   ========================================================================== */
+
+/* ---------- كروت التارجت (المبيعات / التحصيل) ---------- */
+.kpi-card.tg-stat { min-height: 0; gap: 7px; padding: 12px 14px; }
+.tg-stat__rows { display: flex; flex-direction: column; gap: 4px; }
+.tg-stat__row,
+.tg-stat__pct {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.88);
+}
+.tg-stat__row b,
+.tg-stat__pct b { color: #ffffff; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tg-stat__pct { margin-top: 2px; }
+.tg-stat__pct b { font-size: 14px; }
+
+/* ---------- مزامنة معلّقة: الأزرار والفلاتر ---------- */
+.ps-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 16px; border-radius: 12px;
+  border: 1px solid var(--app-border);
+  background-color: var(--app-card-secondary, var(--app-card));
+  color: var(--app-text); font-size: 12px; font-weight: 800;
+  box-shadow: none; cursor: pointer; white-space: nowrap;
+  transition: background-color 0.15s ease, filter 0.15s ease;
+}
+.ps-btn:hover { background-color: var(--app-card-hover, var(--app-card-secondary)); }
+.ps-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.ps-btn--primary {
+  border: 0; color: #ffffff;
+  background: linear-gradient(135deg, var(--kpi-sales-a, #1d4ed8), var(--kpi-sales, #2563eb));
+}
+.ps-btn--primary:hover { background: linear-gradient(135deg, var(--kpi-sales-a, #1d4ed8), var(--kpi-sales, #2563eb)); filter: brightness(1.07); }
+
+.ps-seg {
+  padding: 6px 12px; border-radius: 9px; border: 0; background: transparent;
+  box-shadow: none; color: var(--app-text-muted);
+  font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap;
+}
+.ps-seg:hover { color: var(--app-text); }
+.ps-seg--on {
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--kpi-sales-a, #1d4ed8), var(--kpi-sales, #2563eb));
+}
+
+/* ---------- الإعدادات: خط ملوّن رفيع أعلى كروت الأقسام ---------- */
+.sc-grid > .sc-card { box-shadow: inset 0 3px 0 var(--sc-accent, var(--kpi-sales, #2563eb)); }
+.sc-grid > .sc-card:nth-child(2n) { --sc-accent: var(--kpi-collection, #059669); }
+.sc-grid > .sc-card:nth-child(3n) { --sc-accent: var(--kpi-visits, #7c3aed); }

@@ -1,0 +1,66 @@
+/* ==========================================================================
+   settings-polish.css — مركز الإعدادات (تلوين الكروت)
+   كل كارت بلون قسمه: ملف شخصي أزرق · ملخص تيل · كلمة المرور بنفسجي · مظهر عنبري ·
+   إشعارات وردي · فروع سماوي · بيانات تيل/بنفسجي. التبويب النشط بيتلون بلون قسمه.
+   توكنز + color-mix → يشتغل نهاري/ليلي. ما فيهوش !important.
+   ========================================================================== */
+.sc-page .sc-card {
+  --cc: #2563eb;
+  position: relative;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--cc) 8%, var(--app-card)), var(--app-card) 62%);
+  border: 1px solid color-mix(in srgb, var(--cc) 26%, var(--app-border));
+  border-top: 4px solid var(--cc);
+}
+.sc-page .sc-card--blue { --cc: #2563eb; }
+.sc-page .sc-card--teal { --cc: #0d9488; }
+.sc-page .sc-card--violet { --cc: #7c3aed; }
+.sc-page .sc-card--amber { --cc: #d97706; }
+.sc-page .sc-card--rose { --cc: #db2777; }
+.sc-page .sc-card--sky { --cc: #0284c7; }
+
+.sc-page .sc-card__head { padding-bottom: 10px; border-bottom: 1px dashed color-mix(in srgb, var(--cc) 28%, var(--app-border)); }
+.sc-page .sc-card__title svg { color: var(--cc); }
+html.dark .sc-page .sc-card__title svg { color: color-mix(in srgb, var(--cc) 60%, #fff); }
+.sc-page .sc-card__title { color: var(--app-text); }
+.sc-page .sc-card__hint { background: color-mix(in srgb, var(--cc) 10%, transparent); border: 1px solid color-mix(in srgb, var(--cc) 22%, transparent); padding: 2px 9px; border-radius: 999px; }
+
+/* صفوف داخل الكارت */
+.sc-page .sc-row { border-bottom-color: color-mix(in srgb, var(--cc) 14%, var(--app-border)); }
+.sc-page .sc-branch { background: color-mix(in srgb, var(--cc) 7%, var(--app-card-secondary)); border-color: color-mix(in srgb, var(--cc) 24%, var(--app-border)); }
+.sc-page .sc-branch__dot { background: var(--cc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc) 22%, transparent); }
+.sc-page .sc-avatar { background: linear-gradient(140deg, #0f2b38, var(--cc)); box-shadow: 0 8px 20px color-mix(in srgb, var(--cc) 35%, transparent); }
+
+/* التبويبات: كل تبويب نشط بلون قسمه */
+.sc-page .sc-tab[data-active='true'][data-tab='profile'] { background: #2563eb; border-color: #2563eb; }
+.sc-page .sc-tab[data-active='true'][data-tab='appearance'] { background: #d97706; border-color: #d97706; }
+.sc-page .sc-tab[data-active='true'][data-tab='notifications'] { background: #db2777; border-color: #db2777; }
+.sc-page .sc-tab[data-active='true'][data-tab='branches'] { background: #0284c7; border-color: #0284c7; }
+.sc-page .sc-tab[data-active='true'][data-tab='data'] { background: #0d9488; border-color: #0d9488; }
+html.dark .sc-page .sc-tab[data-active='true'] { color: #fff; }
+
+/* حقول كلمة المرور: ثابتة بالتوكنز + زرار العين مش مربع رمادي */
+.sc-page .sc-input {
+  background: var(--app-card-secondary); color: var(--app-text);
+  border: 1px solid color-mix(in srgb, var(--cc, #7c3aed) 28%, var(--app-border));
+  min-width: 0; outline: none;
+}
+.sc-page .sc-input::placeholder { color: var(--app-text-muted); font-weight: 600; }
+.sc-page .sc-input:focus { border-color: var(--cc, #7c3aed); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc, #7c3aed) 22%, transparent); }
+.sc-page .sc-input-ic { color: var(--app-text-muted); pointer-events: none; }
+.sc-page .sc-eye {
+  background: transparent; border: 0; box-shadow: none; padding: 4px; width: auto; height: auto; min-width: 0; min-height: 0;
+  color: var(--app-text-muted); display: inline-grid; place-items: center; border-radius: 8px;
+}
+.sc-page .sc-eye:hover { color: var(--cc, #7c3aed); background: color-mix(in srgb, var(--cc, #7c3aed) 12%, transparent); }
+
+/* زرار الحفظ في كارت كلمة المرور */
+.sc-page .sc-card--violet .sc-btn--primary { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+.sc-page .sc-card--violet .sc-btn--primary:hover { background: #6d28d9; }
+html.dark .sc-page .sc-card--violet .sc-btn--primary { background: #8b5cf6; border-color: #a78bfa; }
+
+/* فورم كلمة المرور: كل حقل جوه عموده (مفيش تداخل) + مسافة ثابتة للأيقونة */
+.sc-page .sc-pwform { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 640px) { .sc-page .sc-pwform { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.sc-page .sc-pwform > div { min-width: 0; }
+.sc-page .sc-pwform .relative { min-width: 0; max-width: 100%; }
+.sc-page .sc-pwform .sc-input { display: block; box-sizing: border-box; width: 100%; max-width: 100%; padding-block: 10px; padding-inline: 36px; text-overflow: ellipsis; }

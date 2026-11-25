@@ -474,7 +474,7 @@ function invoiceScopeKey(scope: InvoiceFetchScope): string {
   return `${repPart}::s:${secPart}`;
 }
 
-function readInvoiceContentStamp(scopeKey: string): { count: number | null; maxCreatedAt: string | null; table: string } | null {
+function readInvoiceContentStamp(scopeKey: string): { count: number | null; maxCreatedAt: string | null; table: string; otherMax?: string | null } | null {
   try {
     const raw = localStorage.getItem(`${INVOICE_CONTENT_STAMP_PREFIX}${scopeKey}`);
     if (!raw) return null;
@@ -484,6 +484,7 @@ function readInvoiceContentStamp(scopeKey: string): { count: number | null; maxC
         count: typeof parsed.count === 'number' ? parsed.count : null,
         maxCreatedAt: parsed.maxCreatedAt ?? null,
         table: parsed.table || 'orders',
+        otherMax: parsed.otherMax ?? null,
       };
     }
   } catch {}
@@ -492,7 +493,7 @@ function readInvoiceContentStamp(scopeKey: string): { count: number | null; maxC
 
 function saveInvoiceContentStamp(
   scopeKey: string,
-  stamp: { count: number | null; maxCreatedAt: string | null; table: string }
+  stamp: { count: number | null; maxCreatedAt: string | null; table: string; otherMax?: string | null }
 ): void {
   try {
     safeLocalStorageSet(`${INVOICE_CONTENT_STAMP_PREFIX}${scopeKey}`, JSON.stringify(stamp));
@@ -1876,6 +1877,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [announcements]);
 
   const [cart, setCart] = useState<CartItem[]>([]);
+  // createOrder بيتوزّع جوه contextValue المتخزّن بـ useMemo، و`cart` مش من الـ deps،
+  // فكان بيشوف سلة قديمة (فاضية) ويرفض الحفظ بـ «سلة الطلبية فارغة». بنقرا السلة الحالية من ref.
+  const cartRef = useRef<CartItem[]>(cart);
+  cartRef.current = cart;
 
   const [cloudinaryConfig, setCloudinaryConfig] = useState<CloudinaryConfig>(() => {
     try {
@@ -3534,6 +3539,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           invStamp &&
           storedInvStamp &&
           invStamp.maxCreatedAt === storedInvStamp.maxCreatedAt &&
+          (invStamp.otherMax ?? null) === (storedInvStamp.otherMax ?? null) &&
           invStamp.table === storedInvStamp.table &&
           invoicesRef.current.length > 0
         ) {
@@ -3545,6 +3551,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           !!invStamp.maxCreatedAt &&
           !!storedInvStamp.maxCreatedAt &&
           invStamp.table === storedInvStamp.table &&
+          !invStamp.otherMax &&
+          !storedInvStamp.otherMax &&
           invoicesRef.current.length > 0;
         if (canIncInv) {
           const inc = await fetchInvoicesFromSupabase(invScope, {
@@ -4316,6 +4324,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             stamp !== null &&
             storedStamp !== null &&
             stamp.maxCreatedAt === storedStamp.maxCreatedAt &&
+            (stamp.otherMax ?? null) === (storedStamp.otherMax ?? null) &&
             stamp.table === storedStamp.table;
 
           if (role === 'sales_rep' && hasLocalInvCache && navigator.onLine !== false && stampMatches) {
@@ -4336,6 +4345,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             !!stamp.maxCreatedAt &&
             !!storedStamp.maxCreatedAt &&
             stamp.table === storedStamp.table &&
+            !stamp.otherMax &&
+            !storedStamp.otherMax &&
             hasLocalInvCache;
 
           const res = canIncrementalInv
@@ -4918,6 +4929,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         stamp &&
         stored &&
         stamp.maxCreatedAt === stored.maxCreatedAt &&
+        (stamp.otherMax ?? null) === (stored.otherMax ?? null) &&
         stamp.table === stored.table &&
         invoicesRef.current.length > 0
       ) {
@@ -4934,6 +4946,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         !!stamp.maxCreatedAt &&
         !!stored.maxCreatedAt &&
         stamp.table === stored.table &&
+        !stamp.otherMax &&
+        !stored.otherMax &&
         invoicesRef.current.length > 0;
 
       const result = canIncremental
@@ -6045,6 +6059,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const totalReserved = branchReservedCount + mainReservedCount;
     const totalAvailable = availableInBranch + availableInWarehouse;
 
+    if (totalAvailable <= 0 && totalReserved <= 0) {
+      return {
+        success: false,
+        message: `⚠️ الصنف (${latestProd.name}) غير متوفر حاليًا: الرصيد صفر بالفرع وبمخزن أكتوبر.`
+      };
+    }
+
     if (totalAvailable <= 0) {
       return {
         success: false,
@@ -6501,6 +6522,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     shortageInvoice?: Invoice;
     message?: string;
   } => {
+    const cart = cartRef.current;
     if (cart.length === 0) {
       return { success: false, message: 'سلة الطلبية فارغة! يرجى إضافة أصناف أولاً.' };
     }
@@ -6515,19 +6537,26 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
 
-    // Strict sequential invoice numbering: find maximum existing sequence number
+    // Per-rep invoice numbering: DRM-<year>-<repTag>-<seq>. Numbers are computed on each device
+    // (offline-first), so a per-rep tag prevents two reps from creating the same number.
     const currentYear = new Date().getFullYear();
-    let maxInvoiceSeq = 100;
+    const repIdText = String(currentUser?.id || 'x');
+    const repDigits = (repIdText.match(/(\d+)\D*$/) || [])[1];
+    let repTag = repDigits ? repDigits.slice(-4).padStart(4, '0') : '';
+    if (!repTag) {
+      let h = 0;
+      for (let i = 0; i < repIdText.length; i++) h = (h * 31 + repIdText.charCodeAt(i)) % 10000;
+      repTag = String(h).padStart(4, '0');
+    }
+    const numberPrefix = `DRM-${currentYear}-${repTag}-`;
+    let maxInvoiceSeq = 0;
     invoices.forEach((inv) => {
-      if (inv.invoiceNumber) {
-        const match = inv.invoiceNumber.match(/(\d+)$/);
-        if (match) {
-          const n = parseInt(match[1], 10);
-          if (!isNaN(n) && n > maxInvoiceSeq) maxInvoiceSeq = n;
-        }
+      if (inv.invoiceNumber && inv.invoiceNumber.startsWith(numberPrefix)) {
+        const n = parseInt(inv.invoiceNumber.slice(numberPrefix.length), 10);
+        if (!isNaN(n) && n > maxInvoiceSeq) maxInvoiceSeq = n;
       }
     });
-    const newInvoiceNumber = `DRM-${currentYear}-${String(maxInvoiceSeq + 1).padStart(4, '0')}`;
+    const newInvoiceNumber = `${numberPrefix}${String(maxInvoiceSeq + 1).padStart(4, '0')}`;
     const now = new Date();
     const formattedDate = now.toISOString().slice(0, 10);
     const formattedTime = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });

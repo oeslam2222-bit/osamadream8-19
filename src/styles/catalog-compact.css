@@ -1,0 +1,35 @@
+/* ==========================================================================
+   الكتالوج — أبعاد أصغر لكرت الصنف (نفس البيانات والعناصر بالظبط)
+   - الصورة: نسبة 4:3 وبحد أقصى للارتفاع بدل المربع الكامل
+   - حشو وفراغات وأزرار أصغر، وشبكة 5 أعمدة على الشاشات الكبيرة
+   ========================================================================== */
+.cat-card.cat-card {
+  gap: 8px;
+  padding: 10px;
+}
+.cat-card .aspect-square {
+  aspect-ratio: 4 / 3;
+  max-height: 190px;
+}
+.cat-card .min-h-\[38px\] { min-height: 34px; }
+.cat-card .grid.grid-cols-2 > .rounded-xl { padding: 5px 6px; }
+.cat-card .sc-btn,
+.cat-card .min-h-\[46px\] { min-height: 40px; }
+.cat-card .space-y-1 > * + * { margin-top: 2px; }
+
+/* الشبكة: عمودين على الموبايل الكبير، وأكتر على الشاشات الأوسع */
+@media (min-width: 420px) {
+  .cat-grid.cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+}
+@media (min-width: 900px) {
+  .cat-grid.cat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
+  .cat-grid.cat-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (min-width: 1700px) {
+  .cat-grid.cat-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+/* صورة المنتج في نافذة التفاصيل */
+.cat-modal-img.cat-modal-img { max-height: 15rem; }

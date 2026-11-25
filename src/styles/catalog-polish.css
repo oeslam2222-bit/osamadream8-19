@@ -1,0 +1,46 @@
+/* ==========================================================================
+   catalog-polish.css — تحسين كرت الصنف (ProductCard)
+   - ألوان من توكنز --app-* + color-mix (نهاري/ليلي)، لون القطاع: كهرباء #0284c7 · منزلي #0d9488.
+   - إصلاح: عدّاد الكمية كان بيطلع برّه الكرت (الزرار بدون min-width:0) + أزرار +/- كانت مربعات رمادية.
+   - بدون !important وبدون blur.
+   ========================================================================== */
+.cat-card { --sec: #0d9488; --tc: #059669; }
+.cat-card[data-sector='elec'] { --sec: #0284c7; }
+.cat-card[data-sector='home'] { --sec: #0d9488; }
+.cat-card[data-tone='ok'] { --tc: #059669; }
+.cat-card[data-tone='warn'] { --tc: #d97706; }
+.cat-card[data-tone='risk'] { --tc: #dc2626; }
+
+/* المفضلة */
+.cat-card .cat-fav { background: var(--app-card-secondary, var(--app-card)); border: 1px solid var(--app-border); color: var(--app-text-muted); box-shadow: none; cursor: pointer; transition: color .15s ease, background-color .15s ease; }
+.cat-card .cat-fav:hover { color: #e11d48; border-color: color-mix(in srgb, #e11d48 40%, var(--app-border)); }
+.cat-card .cat-fav.is-on { color: #e11d48; background: color-mix(in srgb, #e11d48 13%, transparent); border-color: color-mix(in srgb, #e11d48 42%, transparent); }
+
+/* إطار الصورة (خلفية بيضاء ثابتة عشان صور المنتجات) */
+.cat-card .cat-img { border: 1px solid color-mix(in srgb, var(--sec) 22%, var(--app-border)); }
+
+/* سطر القسم/العائلة كـ chip بلون القطاع */
+.cat-card .cat-cat { display: block; width: fit-content; max-width: 100%; margin-inline: auto; padding: 2px 10px; border-radius: 999px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: color-mix(in srgb, var(--sec) 72%, var(--app-text));
+  background: color-mix(in srgb, var(--sec) 11%, transparent); border: 1px solid color-mix(in srgb, var(--sec) 28%, transparent); }
+html.dark .cat-card .cat-cat { color: color-mix(in srgb, var(--sec) 45%, #e2e8f0); }
+
+/* السعر: شريط بارز بلون القطاع */
+.cat-card .cat-price { padding: 6px 8px; border-radius: 12px; background: color-mix(in srgb, var(--sec) 9%, transparent); border: 1px solid color-mix(in srgb, var(--sec) 24%, transparent); }
+.cat-card .cat-price .text-sm { font-size: 15px; }
+
+/* الأكواد */
+.cat-card .cat-code { background: var(--app-card-secondary, var(--app-card)); border: 1px solid var(--app-border); min-width: 0; }
+.cat-card .cat-code:first-child { background: color-mix(in srgb, var(--app-primary, #2563eb) 8%, var(--app-card-secondary, var(--app-card))); border-color: color-mix(in srgb, var(--app-primary, #2563eb) 28%, var(--app-border)); }
+
+/* صف الإضافة: ما يطلعش برّه الكرت */
+.cat-card .cat-act { border-top: 1px dashed color-mix(in srgb, var(--tc) 35%, var(--app-border)); }
+.cat-card .cat-act > div { min-width: 0; }
+.cat-card .cat-add { min-width: 0; overflow: hidden; gap: 6px; }
+.cat-card .cat-add__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-card .cat-qty { flex: 0 0 auto; width: 96px; background: var(--app-card-secondary, var(--app-card)); border: 1px solid var(--app-border); }
+.cat-card .cat-qty__b { flex: 0 0 32px; width: 32px; padding: 0; border: 0; box-shadow: none; background: transparent; color: var(--app-text); cursor: pointer; }
+.cat-card .cat-qty__b:hover { background: color-mix(in srgb, var(--sec) 14%, transparent); color: var(--sec); }
+.cat-card .cat-qty__v { color: var(--app-text); min-width: 0; }
+@media (max-width: 360px) { .cat-card .cat-qty { width: 88px; } .cat-card .cat-qty__b { flex-basis: 28px; width: 28px; } }

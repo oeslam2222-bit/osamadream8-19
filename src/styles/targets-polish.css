@@ -1,0 +1,42 @@
+/* ==========================================================================
+   targets-polish.css — مؤشر أداء المناديب في لوحة التارجت
+   نهاري + ليلي من توكنز --app-*. كل كارت له لون ثابت: بيع أزرق · تحصيل أخضر · أفضل مندوب بنفسجي · متابعة أحمر.
+   ========================================================================== */
+.tp-sec { border-radius: 18px; border: 1px solid var(--app-border); background: var(--app-card); padding: 16px; }
+.tp-sec__hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.tp-sec__t { display: flex; align-items: flex-start; gap: 10px; }
+.tp-sec__t h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--app-text); }
+.tp-sec__t p { margin: 2px 0 0; font-size: 12.5px; font-weight: 600; color: var(--app-text-muted); }
+.tp-sec__ico { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; flex: 0 0 auto; background: color-mix(in srgb, #6366f1 16%, transparent); color: #6366f1; }
+html.dark .tp-sec__ico { color: #a5b4fc; }
+.tp-sec__tone { font-size: 11.5px; font-weight: 800; padding: 4px 12px; border-radius: 999px; }
+
+.tp-grid { display: grid; grid-template-columns: minmax(0, 250px) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.tp-gauge {
+  display: flex; justify-content: center; align-items: center; min-width: 0; padding: 12px; border-radius: 16px;
+  border: 1px solid color-mix(in srgb, #6366f1 25%, var(--app-border));
+  background: linear-gradient(160deg, color-mix(in srgb, #6366f1 10%, var(--app-card)), var(--app-card));
+}
+.tp-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; min-width: 0; }
+@media (min-width: 1280px) { .tp-cards:not(.tp-cards--2) { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.tp-card {
+  --c: #2563eb;
+  min-width: 0; padding: 12px; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--c) 34%, var(--app-border));
+  border-top: 3px solid var(--c);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 15%, var(--app-card)), color-mix(in srgb, var(--c) 5%, var(--app-card)));
+}
+.tp-card--sales { --c: #2563eb; }
+.tp-card--coll  { --c: #10b981; }
+.tp-card--best  { --c: #8b5cf6; }
+.tp-card--warn  { --c: #ef4444; }
+.tp-card__t { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 800; color: var(--app-text); }
+.tp-card__ico { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; background: color-mix(in srgb, var(--c) 20%, transparent); color: var(--c); }
+.tp-card__b { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.tp-card__v { font-size: 18px; font-weight: 800; color: color-mix(in srgb, var(--c) 72%, var(--app-text)); }
+.tp-card__v--name { font-size: 13.5px; }
+.tp-card__s { margin-top: 1px; font-size: 11.5px; font-weight: 700; color: var(--app-text-muted); }
+
+@media (max-width: 1023px) { .tp-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 420px) { .tp-cards { grid-template-columns: minmax(0, 1fr); } }

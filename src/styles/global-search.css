@@ -1,0 +1,80 @@
+/* ==========================================================================
+   البحث الذكي (GlobalSearch) — نهاري/ليلي من توكنز --app-* و --kpi-*
+   كان ثابت على ألوان نهارية (خلفية بيضا + نص غامق) فبيطلع نص غير مقروء
+   وخانة بحث بلون مختلف في الوضع الليلي.
+   بيتحمّل بعد identity.css (نفس الـ specificity فالأخير بيكسب).
+   !important بس على خانة الإدخال، لأن ستايل input العام بيفرض لون خلفية.
+   ========================================================================== */
+.tg-search-overlay { background: rgba(4, 10, 20, 0.6); }
+
+.tg-search-panel {
+  background: var(--app-card);
+  border: 1px solid var(--app-border);
+  box-shadow: 0 30px 70px rgba(2, 8, 20, 0.45);
+  color: var(--app-text);
+}
+
+.tg-search-head {
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-card-secondary, var(--app-card));
+}
+.tg-search-head__icon { color: var(--app-text-muted); }
+
+.tg-search-panel .tg-search-input {
+  background: transparent !important;
+  color: var(--app-text) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+.tg-search-panel .tg-search-input::placeholder { color: var(--app-text-muted); opacity: 0.85; }
+.tg-search-head:focus-within {
+  box-shadow: inset 0 -2px 0 var(--kpi-sales, #2563eb);
+}
+
+.tg-search-close {
+  background: color-mix(in srgb, var(--app-text) 8%, transparent);
+  color: var(--app-text-muted);
+  box-shadow: none;
+}
+.tg-search-close:hover { background: color-mix(in srgb, var(--app-text) 14%, transparent); color: var(--app-text); }
+
+/* الحالة الفاضية */
+.tg-search-empty__icon {
+  background: color-mix(in srgb, var(--kpi-sales, #2563eb) 14%, transparent);
+  color: var(--kpi-sales-b, #60a5fa);
+}
+.tg-search-empty__title { color: var(--app-text); }
+.tg-search-empty__sub { color: var(--app-text-muted); }
+.tg-search-quick__btn {
+  background: color-mix(in srgb, var(--kpi-sales, #2563eb) 10%, var(--app-card));
+  border: 1px solid color-mix(in srgb, var(--kpi-sales, #2563eb) 35%, var(--app-border));
+  color: var(--app-text);
+  box-shadow: none;
+}
+.tg-search-quick__btn:hover { background: color-mix(in srgb, var(--kpi-sales, #2563eb) 20%, var(--app-card)); }
+
+/* المجموعات والنتائج */
+.tg-search-group__head { color: var(--app-text-muted); }
+.tg-search-group__count {
+  background: color-mix(in srgb, var(--kpi-sales, #2563eb) 16%, transparent);
+  color: var(--app-text);
+}
+.tg-search-item { border: 1px solid transparent; box-shadow: none; }
+.tg-search-item:hover,
+.tg-search-item--active {
+  background: color-mix(in srgb, var(--kpi-sales, #2563eb) 12%, var(--app-card));
+  border-color: color-mix(in srgb, var(--kpi-sales, #2563eb) 35%, var(--app-border));
+}
+.tg-search-item__title { color: var(--app-text); }
+.tg-search-item__sub { color: var(--app-text-muted); }
+.tg-search-item__arrow { color: var(--app-text-muted); }
+.tg-search-item--active .tg-search-item__arrow { color: var(--kpi-sales-b, #60a5fa); }
+
+/* الفوتر */
+.tg-search-foot {
+  border-top: 1px solid var(--app-border);
+  background: var(--app-card-secondary, var(--app-card));
+  color: var(--app-text-muted);
+}
+.tg-search-foot__count { color: var(--kpi-sales-b, #60a5fa); }

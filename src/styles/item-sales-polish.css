@@ -1,0 +1,74 @@
+/* ==========================================================================
+   item-sales-polish.css — تلوين وتنسيق صفحة "مبيعات الأصناف" (ItemSalesInsights)
+   كله متحدد بـ .ss-page--ins فمفيش تأثير على باقي الصفحات اللي بتستخدم sales-summary.css.
+   ألوان من التوكنز + ألوان ثابتة هادية، نهاري/ليلي، بدون !important.
+   ========================================================================== */
+.ss-page--ins .ss-head {
+  background: linear-gradient(135deg, color-mix(in srgb, #0ea5e9 14%, var(--app-card)), var(--app-card) 70%);
+  border-color: color-mix(in srgb, #0ea5e9 26%, var(--app-border));
+}
+.ss-page--ins .ss-title { font-size: 21px; }
+.ss-page--ins .ss-seg__btn.is-active { background: #2563eb; }
+.ss-page--ins .si-field span { padding-inline: 2px; }
+
+/* ---------- كروت الأرقام ---------- */
+.ss-page--ins .ss-kpi {
+  --a: #2563eb; --c: #1d4ed8;
+  position: relative; overflow: hidden; border: 0; color: #fff;
+  background: linear-gradient(135deg, var(--a), var(--c));
+}
+.ss-page--ins .ss-kpi--sales { --a: #2563eb; --c: #1d4ed8; }
+.ss-page--ins .ss-kpi--qty   { --a: #0891b2; --c: #0e7490; }
+.ss-page--ins .ss-kpi--items { --a: #7c3aed; --c: #6d28d9; }
+.ss-page--ins .ss-kpi--fam   { --a: #d97706; --c: #b45309; }
+.ss-page--ins .ss-kpi .ss-kpi__label { color: rgba(255,255,255,.9); }
+.ss-page--ins .ss-kpi .ss-kpi__value { color: #fff; }
+.ss-page--ins .ss-kpi .ss-kpi__meta { color: rgba(255,255,255,.85); }
+.ss-page--ins .ss-kpi__orb { position: absolute; left: -22px; bottom: -34px; width: 96px; height: 96px; border-radius: 50%; background: rgba(255,255,255,.12); pointer-events: none; }
+
+/* ---------- الشارت ---------- */
+.ss-page--ins .ss-bar { fill: #3b82f6; }
+.ss-page--ins .ss-bar.is-max { fill: #10b981; }
+.ss-page--ins .ss-bar.is-min { fill: #ef4444; }
+.si-legend-inline { display: flex; gap: 12px; font-size: 12px; font-weight: 700; color: var(--app-text-muted); }
+.si-legend-inline span { display: inline-flex; align-items: center; gap: 5px; }
+.si-legend-inline i { width: 10px; height: 10px; border-radius: 3px; background: #3b82f6; display: inline-block; }
+.si-legend-inline i.is-max { background: #10b981; }
+.si-legend-inline i.is-min { background: #ef4444; }
+
+/* ---------- كروت أعلى 5 ---------- */
+.si-rk { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.si-rkc { --rc: #14b8a6; padding: 14px; border-top: 3px solid var(--rc); display: flex; flex-direction: column; gap: 10px; }
+.si-rkc--teal { --rc: #14b8a6; }
+.si-rkc--violet { --rc: #8b5cf6; }
+.si-rkc--amber { --rc: #f59e0b; }
+.si-rkc__t { margin: 0; font-size: 14px; font-weight: 800; color: var(--app-text); display: flex; align-items: center; gap: 8px; }
+.si-rkc__t i { width: 10px; height: 10px; border-radius: 3px; background: var(--rc); display: inline-block; }
+.si-rkc__l { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
+.si-rkc__n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 800; color: var(--rc); background: color-mix(in srgb, var(--rc) 16%, transparent); }
+.si-rkc__name { font-weight: 700; color: var(--app-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.si-rkc .ss-track { margin-top: 5px; height: 5px; }
+.si-rkc .ss-fill { background: var(--rc); }
+@media (max-width: 1100px) { .si-rk { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- الجدول ---------- */
+.ss-page--ins .ss-table thead th {
+  background: color-mix(in srgb, #2563eb 14%, var(--app-card-secondary, var(--app-card)));
+  color: var(--app-text); font-size: 12.5px;
+  border-bottom: 2px solid #2563eb;
+}
+.ss-page--ins .si-table tbody tr:nth-child(odd):not(.si-detail):not(.is-open) td { background: color-mix(in srgb, #2563eb 3.5%, transparent); }
+.ss-page--ins .si-table tbody tr:hover td { background: color-mix(in srgb, #2563eb 9%, transparent); }
+.ss-page--ins .si-amt { color: #2563eb; }
+html.dark .ss-page--ins .si-amt { color: #7cb0ff; }
+.ss-page--ins .ss-fill { background: linear-gradient(90deg, #1d4ed8, #60a5fa); }
+.ss-page--ins .si-spark rect { fill: #3b82f6; opacity: .5; }
+.ss-page--ins .si-spark rect.is-peak { fill: #10b981; opacity: 1; }
+.ss-page--ins .si-spark rect.is-zero { fill: var(--app-border); opacity: 1; }
+.ss-page--ins .si-peak { color: #10b981; font-weight: 700; }
+.ss-medal { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 800; color: #1a1204; }
+.ss-medal--1 { background: #f5b301; }
+.ss-medal--2 { background: #aab4c4; }
+.ss-medal--3 { background: #c98a52; }
+.ss-page--ins .si-tab.is-active { background: color-mix(in srgb, #2563eb 14%, transparent); color: #2563eb; border-color: color-mix(in srgb, #2563eb 35%, transparent); }
+html.dark .ss-page--ins .si-tab.is-active { color: #93c5fd; }

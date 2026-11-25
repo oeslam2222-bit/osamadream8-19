@@ -1,0 +1,26 @@
+/* قائمة اختيار العميل — صفوف مقروءة نهاراً وليلاً (كانت بتاخد خلفية رمادية عامة للأزرار) */
+.csel .csel-row {
+  background: transparent !important;
+  color: var(--app-text, #0f172a) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+.csel .csel-row:hover,
+.csel .csel-row:focus-visible {
+  background: rgba(16, 185, 129, 0.10) !important;
+  outline: none;
+}
+.csel .csel-row .text-slate-900 { color: var(--app-text, #0f172a) !important; }
+.csel .csel-row .text-slate-500 { color: var(--app-text-muted, #64748b) !important; }
+html.dark .csel .csel-list { background: var(--app-card) !important; border-color: var(--app-border) !important; }
+html.dark .csel .csel-row .bg-slate-100 { background: var(--app-card-hover) !important; border-color: var(--app-border) !important; }
+html.dark .csel .csel-row .text-slate-600 { color: var(--app-text-muted) !important; }
+html.dark .csel .csel-row:hover,
+html.dark .csel .csel-row:focus-visible { background: rgba(52, 211, 153, 0.14) !important; }
+html.dark .csel input, html.dark .csel select {
+  background: var(--app-card-secondary) !important; color: var(--app-text) !important; border-color: var(--app-border) !important;
+}
+html.dark .csel .bg-emerald-50\/60 { background: rgba(16,185,129,.14) !important; border-color: rgba(52,211,153,.4) !important; }
+html.dark .csel .text-slate-900, html.dark .csel .text-slate-700 { color: var(--app-text) !important; }
+html.dark .csel .text-slate-600, html.dark .csel .text-slate-500 { color: var(--app-text-muted) !important; }

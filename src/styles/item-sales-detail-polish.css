@@ -1,0 +1,63 @@
+/* ==========================================================================
+   item-sales-detail-polish.css — «حركات البيع التفصيلية» (CustomerItemSalesView)
+   متحدد بـ .cis-page (الروت الموجود أصلاً). توكنز + نغمات KPI نفسها (--kpi-*).
+   - كروت المؤشرات (tg-report-kpi) كانت من غير أي CSS خالص → دلوقتي تدرّج كامل ونص أبيض.
+   - تصفية النتائج + تبويبات العرض + جداول الـ pivot + هيدر كروت التحليل.
+   نهاري/ليلي، بدون !important وبدون blur.
+   ========================================================================== */
+
+/* ---------- كروت المؤشرات ---------- */
+.cis-page .tg-report-kpi {
+  --a: var(--kpi-sales-a, #1d4ed8); --c: var(--kpi-sales, #2563eb);
+  position: relative; isolation: isolate; overflow: hidden; min-width: 0;
+  border: 0; border-radius: 16px; color: #ffffff;
+  background: linear-gradient(135deg, var(--a), var(--c));
+  box-shadow: 0 6px 16px -8px var(--c);
+}
+.cis-page .tg-report-kpi--blue   { --a: var(--kpi-sales-a, #1d4ed8);      --c: var(--kpi-sales, #2563eb); }
+.cis-page .tg-report-kpi--green  { --a: var(--kpi-collection-a, #047857); --c: var(--kpi-collection, #059669); }
+.cis-page .tg-report-kpi--violet { --a: var(--kpi-promo-a, #6d28d9);      --c: var(--kpi-promo, #7c3aed); }
+.cis-page .tg-report-kpi--amber  { --a: var(--kpi-warn-a, #b45309);       --c: var(--kpi-warn, #d97706); }
+.cis-page .tg-report-kpi--red    { --a: var(--kpi-debt-a, #be123c);       --c: var(--kpi-debt, #e11d48); }
+.cis-page .tg-report-kpi::after {
+  content: ""; position: absolute; z-index: -1; inset-block-end: -34px; inset-inline-start: -24px;
+  width: 100px; height: 100px; border-radius: 50%; background: rgba(255, 255, 255, 0.13); pointer-events: none;
+}
+.cis-page .tg-report-kpi__label { color: rgba(255, 255, 255, 0.94); }
+.cis-page .tg-report-kpi__icon { background: rgba(255, 255, 255, 0.22); color: #ffffff; }
+.cis-page .tg-report-kpi__value { color: #ffffff; font-size: clamp(1.1rem, 4.2vw, 1.45rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cis-page .tg-report-kpi__hint { color: rgba(255, 255, 255, 0.9); }
+/* شارة النمو/الشيب فوق الخلفية الملونة: شفافة ونص أبيض (والسهم موجود → مش اللون وحده) */
+.cis-page .tg-report-kpi__pill,
+.cis-page .tg-report-kpi__chip { background: rgba(255, 255, 255, 0.22); border-color: rgba(255, 255, 255, 0.45); color: #ffffff; }
+
+/* ---------- تصفية النتائج ---------- */
+.cis-page .cis-filters {
+  background: linear-gradient(135deg, color-mix(in srgb, #0ea5e9 9%, var(--app-card)), var(--app-card) 70%);
+  border: 1px solid color-mix(in srgb, #0ea5e9 24%, var(--app-border)); border-top: 3px solid #0ea5e9;
+}
+.cis-page .cis-filters select,
+.cis-page .cis-filters input { background: var(--app-card-secondary, var(--app-card)); color: var(--app-text); border-color: var(--app-border); }
+
+/* ---------- تبويبات العرض: كل تبويب بلونه ---------- */
+.cis-page .cis-tabs { background: var(--app-card); border: 1px solid var(--app-border); }
+.cis-page .cis-tab { --tc: #2563eb; color: var(--app-text-muted); background: transparent; border: 1px solid transparent; box-shadow: none; transition: background-color .15s ease, color .15s ease; }
+.cis-page .cis-tab--overview { --tc: #2563eb; }
+.cis-page .cis-tab--visuals { --tc: #7c3aed; }
+.cis-page .cis-tab--customers { --tc: #0d9488; }
+.cis-page .cis-tab--focus { --tc: #d97706; }
+.cis-page .cis-tab:hover { color: var(--app-text); background: color-mix(in srgb, var(--tc) 9%, transparent); }
+.cis-page .cis-tab.is-on { background: var(--tc); border-color: var(--tc); color: #ffffff; box-shadow: 0 6px 14px -8px var(--tc); }
+
+/* ---------- كروت التحليل ---------- */
+.cis-page .cis-shell { border-top: 3px solid color-mix(in srgb, var(--app-primary, #2563eb) 65%, var(--app-border)); }
+.cis-page .cis-shell > header h3 { color: var(--app-text); }
+
+/* ---------- جداول الـ pivot ---------- */
+.cis-page .cis-pivot { border-top: 3px solid #0d9488; }
+.cis-page .cis-pivot table thead th {
+  background: color-mix(in srgb, #0d9488 12%, var(--app-card-secondary, var(--app-card))); color: var(--app-text);
+  border-bottom: 2px solid #0d9488;
+}
+.cis-page .cis-pivot table tbody tr:nth-child(even) td { background: color-mix(in srgb, #0d9488 4%, transparent); }
+.cis-page .cis-pivot table tbody tr:hover td { background: color-mix(in srgb, #0d9488 10%, transparent); }

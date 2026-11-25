@@ -240,3 +240,47 @@ html, body { overflow-x: clip !important; }
 @media (min-width: 1024px) and (max-width: 1180px) {
   .pm-modal .pm-body { grid-template-columns: 300px minmax(0, 1fr) !important; }
 }
+
+/* قائمة الحساب (فيها تسجيل الخروج) كانت بتتقص جوه شريط الأعلى لأنه overflow:hidden،
+   فالضغط على "تسجيل الخروج" كان بيقع على الخلفية الشفافة ويقفل القائمة بس. */
+.ds-topbar__main:has(.ds-popover) { overflow: visible !important; }
+
+/* Button used on dark headers (e.g. invoice preview "send to Dynamics") - was never defined */
+.btn-ondark {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(255,255,255,.14); color: #fff;
+  border: 1px solid rgba(255,255,255,.35); border-radius: 10px;
+  white-space: nowrap; transition: background .15s;
+}
+.btn-ondark:hover:not(:disabled) { background: rgba(255,255,255,.24); }
+
+/* Invoice preview: never wider than the screen; wide tables scroll inside their own box */
+.modal-full-mobile { max-width: 100vw; }
+.modal-full-mobile > * { min-width: 0; }
+.modal-full-mobile table { max-width: none; }
+
+/* ---- تعيين كلمة المرور في إدارة الفريق: صف واضح بدون تداخل ---- */
+.um-pw-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; width: 100%; }
+.um-pw-field { position: relative; flex: 1 1 220px; min-width: 0; }
+.um-pw-field .um-pw-input {
+  width: 100%; height: 44px; box-sizing: border-box;
+  padding: 0 44px 0 12px; border-radius: 12px;
+  font-family: ui-monospace, Consolas, monospace; font-weight: 700; font-size: 13px;
+  text-align: left; direction: ltr;
+}
+.um-pw-field .um-pw-input::placeholder { direction: rtl; text-align: right; font-family: inherit; font-weight: 500; }
+.um-pw-field .um-pw-eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; padding: 0; border: 0 !important; border-radius: 8px;
+  background: transparent !important; box-shadow: none !important; color: var(--app-text-muted, #64748b);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.um-pw-field .um-pw-eye:hover { background: rgba(148,163,184,.18) !important; color: var(--app-text, #0f172a); }
+.um-pw-btn {
+  flex: 0 0 auto; height: 44px; padding: 0 18px; border: 0; border-radius: 12px;
+  background: #2563eb; color: #fff; font-weight: 900; font-size: 12.5px; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+}
+.um-pw-btn:hover { background: #1d4ed8; }
+.um-pw-btn:disabled { opacity: .6; cursor: not-allowed; }
+@media (max-width: 520px) { .um-pw-btn { flex: 1 1 100%; } }

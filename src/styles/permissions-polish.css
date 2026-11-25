@@ -1,0 +1,42 @@
+/* ==========================================================================
+   permissions-polish.css — نافذة «مركز الصلاحيات والوصول»
+   كل مجموعة شاشات بلون: الرئيسية أزرق · العملاء تيل · الطلبات عنبري · المخزون بنفسجي · الإدارة وردي.
+   الشاشة المفعّلة تتلون بلون مجموعتها. نهاري + ليلي من التوكنز.
+   ========================================================================== */
+.pm-hd { background-image: radial-gradient(circle at 10% 120%, rgba(245,158,11,.16), transparent 45%), linear-gradient(135deg, #0b2230, #12395a 60%, #164a73); border-bottom: 3px solid #f59e0b; }
+.pm-modal .pm-x { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border-radius: 12px; cursor: pointer; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); color: #fff; }
+.pm-modal .pm-x:hover { background: rgba(255,255,255,.22); }
+.pm-av { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; font-weight: 800; color: #fff; background-image: linear-gradient(135deg, #12395a, #2563eb); }
+
+/* قايمة المستخدمين */
+.pm-modal .pm-user {
+  display: block; width: 100%; text-align: right; padding: 10px 11px; border-radius: 13px; cursor: pointer;
+  background: var(--app-card); border: 1px solid var(--app-border); border-inline-start: 4px solid transparent;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.pm-modal .pm-user:hover { background: color-mix(in srgb, #2563eb 6%, var(--app-card)); }
+.pm-modal .pm-user.is-on { background: color-mix(in srgb, #2563eb 11%, var(--app-card)); border-color: color-mix(in srgb, #2563eb 55%, var(--app-border)); border-inline-start-color: #2563eb; }
+.pm-chip { font-size: 10.5px; font-weight: 800; padding: 1px 8px; border-radius: 8px; border: 1px solid var(--app-border); background: color-mix(in srgb, #64748b 12%, var(--app-card)); color: var(--app-text-muted); }
+.pm-chip.is-on { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+/* المجموعات */
+.pm-grp { --gc: #2563eb; border-radius: 16px; overflow: hidden; background: var(--app-card); border: 1px solid color-mix(in srgb, var(--gc) 28%, var(--app-border)); border-top: 3px solid var(--gc); }
+.pm-grp--blue { --gc: #2563eb; }
+.pm-grp--teal { --gc: #0d9488; }
+.pm-grp--amber { --gc: #d97706; }
+.pm-grp--violet { --gc: #7c3aed; }
+.pm-grp--rose { --gc: #db2777; }
+.pm-grp__hd { padding: 11px 14px; background: color-mix(in srgb, var(--gc) 10%, var(--app-card-secondary, var(--app-card))); border-bottom: 1px solid color-mix(in srgb, var(--gc) 22%, var(--app-border)); }
+
+/* بلاطة الشاشة */
+.pm-modal .pm-tile {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 13px; text-align: right; cursor: pointer;
+  background: var(--app-card); border: 1px solid var(--app-border); color: var(--app-text-muted); transition: background-color .15s ease, border-color .15s ease;
+}
+.pm-modal .pm-tile:hover { background: color-mix(in srgb, var(--gc, #2563eb) 6%, var(--app-card)); }
+.pm-modal .pm-tile.is-on { background: color-mix(in srgb, var(--gc, #2563eb) 12%, var(--app-card)); border-color: color-mix(in srgb, var(--gc, #2563eb) 50%, var(--app-border)); color: var(--app-text); }
+.pm-modal .pm-tile.is-home { cursor: default; }
+.pm-tile.is-on > div:last-child > span:last-child { background: var(--gc, #2563eb); color: #fff; }
+
+.pm-modal .pm-save { color: #fff; background-image: linear-gradient(135deg, #0b2230, #12395a); border: 1px solid #12395a; box-shadow: 0 8px 18px -10px rgba(18, 57, 90, .8); }
+.pm-modal .pm-save:hover { background-image: linear-gradient(135deg, #12395a, #1a4d7a); }

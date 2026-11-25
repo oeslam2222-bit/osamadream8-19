@@ -79,6 +79,40 @@
   --app-navy-tint: #F1F5F9;
   --app-navy-line: #CBD5E1;
   --app-navy-text: #0F2B38;
+
+  /* ----------------------------------------------------------
+     KPI gradient tones — used by .kpi-card (components/ui/KpiCard)
+     a = أغمق طرف في التدرّج · b = أفتح طرف · الاسم الأساسي = اللون
+     نفس القيم في الوضعين، والنص أبيض فتباينه محفوظ
+     ---------------------------------------------------------- */
+  --kpi-sales: #2563EB;
+  --kpi-sales-a: #1D4ED8;
+  --kpi-sales-b: #60A5FA;
+
+  --kpi-collection: #059669;
+  --kpi-collection-a: #047857;
+  --kpi-collection-b: #34D399;
+
+  --kpi-due: #0891B2;
+  --kpi-due-a: #0E7490;
+  --kpi-due-b: #22D3EE;
+
+  --kpi-debt: #E11D48;
+  --kpi-debt-a: #BE123C;
+  --kpi-debt-b: #FB7185;
+
+  --kpi-warn: #D97706;
+  --kpi-warn-a: #B45309;
+  --kpi-warn-b: #FBBF24;
+
+  --kpi-promo: #7C3AED;
+  --kpi-promo-a: #6D28D9;
+  --kpi-promo-b: #A78BFA;
+
+  /* زيارات اليوم — بنفسجي */
+  --kpi-visits: #7C3AED;
+  --kpi-visits-a: #6D28D9;
+  --kpi-visits-b: #A78BFA;
 }
 
 .dark {
@@ -150,6 +184,37 @@
   --app-navy-tint: rgba(23, 36, 58, 0.6);
   --app-navy-line: #26364D;
   --app-navy-text: #94A3B8;
+
+  /* KPI gradient tones — نفس القيم بالظبط في الوضع الليلي
+     (النص أبيض فمفيش داعي لتفتيح/تغميق التدرّج) */
+  --kpi-sales: #2563EB;
+  --kpi-sales-a: #1D4ED8;
+  --kpi-sales-b: #60A5FA;
+
+  --kpi-collection: #059669;
+  --kpi-collection-a: #047857;
+  --kpi-collection-b: #34D399;
+
+  --kpi-due: #0891B2;
+  --kpi-due-a: #0E7490;
+  --kpi-due-b: #22D3EE;
+
+  --kpi-debt: #E11D48;
+  --kpi-debt-a: #BE123C;
+  --kpi-debt-b: #FB7185;
+
+  --kpi-warn: #D97706;
+  --kpi-warn-a: #B45309;
+  --kpi-warn-b: #FBBF24;
+
+  --kpi-promo: #7C3AED;
+  --kpi-promo-a: #6D28D9;
+  --kpi-promo-b: #A78BFA;
+
+  /* زيارات اليوم — بنفسجي */
+  --kpi-visits: #7C3AED;
+  --kpi-visits-a: #6D28D9;
+  --kpi-visits-b: #A78BFA;
 }
 
 /* ============================================================
@@ -315,4 +380,26 @@ button, input, select, textarea {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--app-text-muted);
+}
+
+/* ============================================================
+   كارت العميل v3 — «هيدر ملوّن كامل»
+   نفس القيم في النهار والليل (الكارت بيتحكم في ألوانه بنفسه).
+   --s: لون القطاع الأساسي، --s-shade: الطرف الغامق في التدرّج.
+   (ظلّ المنزلي #1a45a4 = color-mix(in srgb, #2563eb 70%, #000))
+   ============================================================ */
+:root {
+  --cc-sector-home: #2563eb;
+  --cc-sector-home-shade: #1a45a4;
+  --cc-sector-electrical: #0284c7;
+  --cc-sector-electrical-shade: #0b5f94;
+  --cc-sector-default: #475569;
+  --cc-sector-default-shade: #334155;
+
+  --cc-debt-a: #be123c;
+  --cc-debt-b: #e11d48;
+  --cc-collection-a: #047857;
+  --cc-collection-b: #059669;
+  --cc-returns-a: #b45309;
+  --cc-returns-b: #d97706;
 }

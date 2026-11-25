@@ -1,0 +1,62 @@
+/* ==========================================================================
+   item-sales-table-polish.css — جدول «مبيعات الأصناف» (ItemSalesInsights) نهاري + ليلي
+   متحدد بـ .ss-page--ins .  بيتحمّل بعد item-sales-polish.css فبيكسب بالترتيب (من غير !important).
+   المشاكل اللي اتعالجت: أعمدة الحركة الشهرية باهتة في الليلي · الهيدر ماله وزن · الصفوف من غير فواصل ولا زيبرا ·
+   رقم الترتيب العادي · العائلة نص رمادي · شريط النسبة ماله خلفية واضحة.
+   ========================================================================== */
+.ss-page--ins .ss-tablewrap { border: 1px solid var(--app-border); border-radius: 14px; overflow-x: auto; background: var(--app-card); }
+
+/* الهيدر */
+.ss-page--ins .si-table thead th {
+  background: linear-gradient(180deg, color-mix(in srgb, #2563eb 18%, var(--app-card)), color-mix(in srgb, #2563eb 9%, var(--app-card)));
+  color: color-mix(in srgb, #1e3a8a 75%, var(--app-text));
+  font-weight: 800; letter-spacing: .1px; border-bottom: 2px solid #2563eb; white-space: nowrap;
+}
+html.dark .ss-page--ins .si-table thead th { color: #bfdbfe; background: linear-gradient(180deg, color-mix(in srgb, #2563eb 24%, var(--app-card)), color-mix(in srgb, #2563eb 12%, var(--app-card))); border-bottom-color: #3b82f6; }
+
+/* الصفوف */
+.ss-page--ins .si-table tbody td { border-bottom: 1px solid color-mix(in srgb, var(--app-border) 75%, transparent); }
+.ss-page--ins .si-table tbody tr:nth-child(odd):not(.si-detail):not(.is-open) td { background: color-mix(in srgb, #2563eb 3.5%, transparent); }
+html.dark .ss-page--ins .si-table tbody tr:nth-child(odd):not(.si-detail):not(.is-open) td { background: color-mix(in srgb, #ffffff 2.5%, transparent); }
+.ss-page--ins .si-table tbody tr:hover:not(.si-detail) td { background: color-mix(in srgb, #2563eb 10%, transparent); }
+.ss-page--ins .si-table tbody tr.is-open td { background: color-mix(in srgb, #2563eb 14%, var(--app-card)); border-bottom-color: color-mix(in srgb, #2563eb 35%, var(--app-border)); }
+
+/* الترتيب */
+.ss-page--ins .si-rk-n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 800; color: var(--app-text-muted); background: color-mix(in srgb, #64748b 14%, transparent); }
+
+/* الاسم والكود */
+.ss-page--ins .si-table .ss-strong { color: var(--app-text); }
+.ss-page--ins .si-table .ss-code { color: var(--app-text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+
+/* العائلة كـ pill */
+.ss-page--ins .si-fam { display: inline-block; max-width: 100%; padding: 2px 10px; border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
+  font-size: 12px; font-weight: 700; color: color-mix(in srgb, #6d28d9 80%, var(--app-text)); background: color-mix(in srgb, #7c3aed 11%, transparent); border: 1px solid color-mix(in srgb, #7c3aed 26%, transparent); }
+html.dark .ss-page--ins .si-fam { color: #ddd6fe; }
+
+/* الأرقام */
+.ss-page--ins .si-table td.ss-num { font-variant-numeric: tabular-nums; color: var(--app-text); font-weight: 700; }
+.ss-page--ins .si-table td.si-amt { color: #1d4ed8; font-weight: 800; }
+html.dark .ss-page--ins .si-table td.si-amt { color: #93c5fd; }
+
+/* الحركة بالشهور */
+.ss-page--ins .si-spark rect { fill: #60a5fa; opacity: .72; }
+html.dark .ss-page--ins .si-spark rect { fill: #60a5fa; opacity: .9; }
+.ss-page--ins .si-spark rect.is-peak { fill: #10b981; opacity: 1; }
+.ss-page--ins .si-spark rect.is-zero { fill: var(--app-border); opacity: 1; }
+.ss-page--ins .si-peak { color: #047857; font-weight: 800; }
+html.dark .ss-page--ins .si-peak { color: #34d399; }
+
+/* النسبة */
+.ss-page--ins .si-share .ss-track { height: 7px; background: color-mix(in srgb, #2563eb 13%, var(--app-card-secondary, var(--app-card))); border-radius: 99px; }
+.ss-page--ins .si-share .ss-fill { background: linear-gradient(90deg, #1d4ed8, #60a5fa); border-radius: 99px; }
+.ss-page--ins .si-share .ss-num { color: var(--app-text); font-weight: 700; }
+
+/* التبويبات: لون لكل تبويب */
+.ss-page--ins .si-tab { --tc: #2563eb; }
+.ss-page--ins .si-tab[data-k='families'] { --tc: #7c3aed; }
+.ss-page--ins .si-tab[data-k='branches'] { --tc: #0d9488; }
+.ss-page--ins .si-tab:hover { background: color-mix(in srgb, var(--tc) 9%, transparent); }
+.ss-page--ins .si-tab.is-active { background: color-mix(in srgb, var(--tc) 15%, transparent); color: color-mix(in srgb, var(--tc) 80%, var(--app-text)); border-color: color-mix(in srgb, var(--tc) 40%, transparent); }
+html.dark .ss-page--ins .si-tab.is-active { color: color-mix(in srgb, var(--tc) 45%, #ffffff); }
+.ss-page--ins .si-tab.is-active .si-tab__n { background: var(--tc); color: #ffffff; }
+.ss-page--ins .si-tab svg { color: var(--tc); }

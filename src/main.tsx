@@ -31,6 +31,8 @@ import './styles/brand-v2.css';
 import './styles/electronic-invoice.css';
 // تنسيق صفحة مبيعات الأصناف في الوضعين (النهار/الليل)
 import './styles/item-sales-page.css';
+// صفحتا التحصيل والمرتجعات — ألوان واضحة في الوضع الليلي وأسماء غير مقطوعة
+import './styles/collection-returns.css';
 // توحيد شكل الكروت والنصوص في الوضع الليلي على مستوى التطبيق
 import './styles/theme-consistency.css';
 // تلوين كارت العميل الدلالي — لازم بعد theme-consistency عشان ألوان البنود تثبت
@@ -39,6 +41,9 @@ import './styles/customer-card.css';
 import './styles/fonts.css';
 // تخطيط الشاشة (سايدبار + محتوى) — آخر ملف: بيلغي الإزاحات المكررة من الملفات القديمة
 import './styles/layout-fix.css';
+// كروت المؤشرات الموحّدة (.kpi-card) — لازم يتجلّى بعد باقي الملفات
+// عشان يكسب بالترتيب مش بـ!important
+import './styles/kpi-cards.css';
 
 import { initMonitoring } from './services/monitoring';
 

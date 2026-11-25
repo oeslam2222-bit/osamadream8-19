@@ -1,0 +1,37 @@
+/* ==========================================================================
+   excel-polish.css — صفحة الإكسل / ربط الشيتات
+   1) إصلاح: خانة الرابط كانت راكبة على الزراير (عنصر flex من غير min-width:0).
+   2) كروت الشيتات الخمسة بلون مميز لكل كارت + نهاري/ليلي من التوكنز.
+   ========================================================================== */
+/* صف الرابط + الأزرار: Grid بدل Flex — عمود الرابط minmax(0,1fr) والأزرار max-content،
+   فمستحيل الخانة تركب على الزراير مهما كان عرض الشاشة أو ستايلات الأزرار العامة. */
+.xl-url .xl-urlrow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-items: center; }
+.xl-url .xl-urlrow > * { min-width: 0; }
+.xl-url .xl-urlrow input { width: 100%; min-width: 0; text-overflow: ellipsis; }
+.xl-url .xl-urlrow > button { width: auto; margin: 0; position: static; white-space: nowrap; }
+@media (min-width: 640px) {
+  .xl-url .xl-urlrow { grid-auto-flow: column; grid-auto-columns: max-content; }
+}
+
+.xl-card { --xc: #2563eb; }
+.xl-card--1 { --xc: #2563eb; }
+.xl-card--2 { --xc: #7c3aed; }
+.xl-card--3 { --xc: #0d9488; }
+.xl-card--4 { --xc: #d97706; }
+.xl-card--5 { --xc: #db2777; }
+.xl-card.xl-card {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--xc) 8%, var(--app-card)), var(--app-card) 45%);
+  border: 1px solid color-mix(in srgb, var(--xc) 28%, var(--app-border));
+  border-top: 4px solid var(--xc);
+  border-radius: 22px;
+}
+.xl-card.xl-card:hover { border-color: color-mix(in srgb, var(--xc) 55%, var(--app-border)); border-top-color: var(--xc); }
+.xl-card .xl-url {
+  background: color-mix(in srgb, var(--xc) 5%, var(--app-card-secondary, var(--app-card)));
+  border: 1px solid color-mix(in srgb, var(--xc) 24%, var(--app-border));
+  border-radius: 16px;
+}
+.xl-metric--cust {
+  background: color-mix(in srgb, var(--xc, #2563eb) 9%, var(--app-card));
+  border: 1px solid color-mix(in srgb, var(--xc, #2563eb) 30%, var(--app-border));
+}
