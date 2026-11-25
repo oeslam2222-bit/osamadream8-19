@@ -56,6 +56,7 @@ import { useCart } from '../context/cartContext';
 import { useTheme } from '../context/themeContext';
 import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
+import repAvatarUrl from '../assets/images/rep_avatar_1794555996338.jpg';
 
 /* الشاشات دي بتتفتح من أيقونات نادرة الاستخدام، وكانت كلها جوه الحزمة الأولى
    (~600KB زيادة على أول تحميل). بقت chunks منفصلة بتتنزّل أول مرة تتفتح فقط. */
@@ -87,7 +88,7 @@ interface NavbarProps {
   onGlobalNavigate?: (tab: string, query?: string) => void;
 }
 
-const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar-v2.jpg';
+const DEFAULT_EXECUTIVE_AVATAR = repAvatarUrl;
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,

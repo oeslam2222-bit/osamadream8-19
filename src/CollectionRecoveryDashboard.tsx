@@ -41,6 +41,7 @@ import type { Customer, CustomerVisit } from '../types';
 import { getLegalCases, subscribeToLegalCases, referCustomerToLegal } from '../services/legalAffairsService';
 import type { LegalCase } from '../services/legalAffairsService';
 import { LegalTransferModal } from './LegalTransferModal';
+import repAvatarUrl from '../assets/images/rep_avatar_1794555996338.jpg';
 
 const todayKey = (): string => {
   const now = new Date();
@@ -326,7 +327,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     const byId = new Map<string, string>();
     const byName = new Map<string, string>();
     users.forEach((u) => {
-      const av = '/assets/rep-avatar-v2.jpg';
+      const av = repAvatarUrl;
       if (u.id) byId.set(u.id, av);
       if (u.username) byId.set(u.username, av);
       if (u.name) {
@@ -343,7 +344,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       if (repId && userAvatarLookup.byId.has(repId)) return userAvatarLookup.byId.get(repId)!;
       const targetName = normalizeArabicText(repName || '');
       if (targetName && userAvatarLookup.byName.has(targetName)) return userAvatarLookup.byName.get(targetName)!;
-      return '/assets/rep-avatar-v2.jpg';
+      return repAvatarUrl;
     };
 
     repoCustomers.forEach((customer) => {
@@ -749,14 +750,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         <div className="tg-card !flex-row !items-center !justify-between gap-3 border border-emerald-200 bg-gradient-to-l from-emerald-50 to-white">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src="/assets/rep-avatar-v2.jpg"
+              src={repAvatarUrl}
               alt={topRep.repName}
               referrerPolicy="no-referrer"
               onError={(e) => {
                 const img = e.currentTarget;
                 if (!img.dataset.fallback) {
                   img.dataset.fallback = '1';
-                  img.src = '/assets/rep-avatar-v2.jpg';
+                  img.src = repAvatarUrl;
                 }
               }}
               className="h-12 w-12 shrink-0 rounded-2xl object-cover object-top border-2 border-emerald-300 shadow-sm"
@@ -1115,14 +1116,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                     <td className="py-3 pr-4 pl-2">
                       <div className="flex items-center gap-3">
                         <img
-                          src="/assets/rep-avatar-v2.jpg"
+                          src={repAvatarUrl}
                           alt={row.repName}
                           referrerPolicy="no-referrer"
                           onError={(e) => {
                             const img = e.currentTarget;
                             if (!img.dataset.fallback) {
                               img.dataset.fallback = '1';
-                              img.src = '/assets/rep-avatar-v2.jpg';
+                              img.src = repAvatarUrl;
                             }
                           }}
                           className="h-9 w-9 rounded-xl object-cover object-top border border-slate-200 shrink-0"
@@ -1167,14 +1168,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
             >
               <div className="flex items-center gap-3">
                 <img
-                  src="/assets/rep-avatar-v2.jpg"
+                  src={repAvatarUrl}
                   alt={rep.repName}
                   referrerPolicy="no-referrer"
                   onError={(e) => {
                     const img = e.currentTarget;
                     if (!img.dataset.fallback) {
                       img.dataset.fallback = '1';
-                      img.src = '/assets/rep-avatar-v2.jpg';
+                      img.src = repAvatarUrl;
                     }
                   }}
                   className={`h-12 w-12 rounded-2xl object-cover object-top border-2 shadow-sm shrink-0 ${
