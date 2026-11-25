@@ -55,7 +55,7 @@ export const CardShell: React.FC<{
   bodyClassName = ''
 }) => (
   <section
-    className={`bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 sm:p-5 flex flex-col ${className}`}
+    className={`cis-shell bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 sm:p-5 flex flex-col ${className}`}
   >
     <header className="flex items-start justify-between gap-3">
       <div className="flex items-start gap-2.5 min-w-0">

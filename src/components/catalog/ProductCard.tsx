@@ -8,6 +8,8 @@ import {
   Store,
   Calendar,
 } from 'lucide-react';
+import '../../styles/catalog-compact.css';
+import '../../styles/catalog-polish.css';
 import React, { useMemo, useCallback } from 'react';
 import { ProductImage } from '../ProductImage';
 import {
@@ -150,6 +152,7 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
   return (
     <div
       data-tone={stockTone}
+      data-sector={isElectrical ? 'elec' : 'home'}
       className={`cat-card sc-card group tg-card tg-card--hover flex flex-col justify-between gap-3 p-3.5 select-none ${
         promoInfo.hasPromo ? 'ring-1 ring-amber-400/70' : ''
       }`}
@@ -178,18 +181,14 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
           type="button"
           onClick={() => onToggleFavorite(p.id)}
           aria-label="إضافة للمفضلة"
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border transition ${
-            isFav
-              ? 'border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/40'
-              : 'border-slate-200 bg-white text-slate-400 hover:text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
-          }`}
+          className={`cat-fav ${isFav ? 'is-on' : ''} flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl`}
         >
           <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-600' : ''}`} />
         </button>
       </div>
 
       <div
-        className="flex aspect-square w-full cursor-pointer items-center justify-center overflow-hidden rounded-[14px] bg-white transition-transform duration-200 group-hover:scale-[1.01]"
+        className="cat-img flex aspect-square w-full cursor-pointer items-center justify-center overflow-hidden rounded-[14px] bg-white transition-transform duration-200 group-hover:scale-[1.01]"
         onClick={handleImageClick}
       >
         <ProductImage
@@ -203,7 +202,7 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
       </div>
 
       <div className="space-y-1 text-center">
-        <div className="text-[10px] font-bold leading-tight text-slate-500 dark:text-slate-400">
+        <div className="cat-cat text-[10px] font-bold leading-tight">
           {stripPlaceholderText(p.department) || stripPlaceholderText(p.itemGroup) || 'عام'}
           {stripPlaceholderText(p.familyName) ? ` • ${stripPlaceholderText(p.familyName)}` : ''}
         </div>
@@ -214,7 +213,7 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
         >
           {displayName || `صنف ${p.code}`}
         </h3>
-        <div className="flex flex-wrap items-center justify-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
+        <div className="cat-price flex flex-wrap items-center justify-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
           {promoInfo.hasPromo && promoInfo.promoCartonPrice > 0 ? (
             <div className="flex flex-wrap items-center justify-center gap-1.5">
               {promoInfo.originalCartonPrice > promoInfo.promoCartonPrice && (
@@ -247,13 +246,13 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-center">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+        <div className="cat-code rounded-xl p-2">
           <span className="mb-0.5 block text-[10px] font-bold text-slate-400">الكود الموحد</span>
           <span className="tg-num block truncate font-mono text-xs font-black text-[var(--app-primary-text)]" title={p.unifiedCode}>
             {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
           </span>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+        <div className="cat-code rounded-xl p-2">
           <span className="mb-0.5 block text-[10px] font-bold text-slate-400">كود العميل</span>
           <span className="tg-num block truncate font-mono text-xs font-black text-slate-900" title={p.code}>
             {p.code || '—'}
@@ -312,33 +311,33 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
         </div>
       )}
 
-      <div className="space-y-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+      <div className="cat-act space-y-2 pt-2">
         <div className="flex items-stretch gap-2">
           <button
             type="button"
             onClick={() => onAddToCart(p)}
-            className="sc-btn sc-btn--primary min-h-[46px] flex-1 px-3 py-2.5 text-xs font-black active:scale-[0.98]"
+            className="sc-btn sc-btn--primary cat-add min-h-[46px] min-w-0 flex-1 px-3 py-2.5 text-xs font-black active:scale-[0.98]"
           >
             <ShoppingCart className="h-4 w-4" />
-            <span>إضافة للفاتورة</span>
+            <span className="cat-add__t">إضافة للفاتورة</span>
           </button>
 
-          <div className="tg-num flex min-h-[46px] w-[110px] shrink-0 items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="cat-qty tg-num flex min-h-[46px] shrink-0 items-center justify-between overflow-hidden rounded-xl">
             <button
               type="button"
               onClick={() => onQtyChange(p.id, 1)}
-              className="flex h-full w-10 items-center justify-center text-sm font-bold text-slate-700 transition hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
+              className="cat-qty__b flex h-full items-center justify-center text-sm font-bold"
               aria-label="زيادة الكمية"
             >
               +
             </button>
-            <span className="flex-1 text-center text-xs font-black text-slate-900 dark:text-white font-mono">
+            <span className="cat-qty__v flex-1 text-center text-xs font-black font-mono">
               {currentQty}
             </span>
             <button
               type="button"
               onClick={() => onQtyChange(p.id, -1)}
-              className="flex h-full w-10 items-center justify-center text-sm font-bold text-slate-700 transition hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
+              className="cat-qty__b flex h-full items-center justify-center text-sm font-bold"
               aria-label="تقليل الكمية"
             >
               -

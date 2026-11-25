@@ -14,6 +14,7 @@ import {
 import React, { useDeferredValue, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import '../../styles/sales-summary.css';
+import '../../styles/sales-summary-polish.css';
 import { MONTH_NAMES_MAP } from '../../services/customerItemSalesService';
 import { growthToneClass, formatGrowth } from '../../services/customerItemSalesInsights';
 import { formatCurrency } from '../../services/invoiceService';
@@ -268,7 +269,7 @@ export const ItemSalesFinalSummaryDashboard: React.FC<ItemSalesFinalSummaryDashb
     rows: Array<{ name: string; amount: number; pieces: number; itemsCount?: number }>,
     empty: string,
   ) => (
-    <section className="ss-card ss-pad">
+    <section className={`ss-card ss-pad ss-rkc ss-rkc--${title === 'الفروع' ? 'teal' : title === 'العائلات' ? 'violet' : 'amber'}`}>
       <h3 className="ss-h3">{icon}{title} <span className="ss-muted">({nf(rows.length)})</span></h3>
       <div className="ss-ranklist">
         {rows.slice(0, 15).map((r, i) => {
@@ -296,7 +297,7 @@ export const ItemSalesFinalSummaryDashboard: React.FC<ItemSalesFinalSummaryDashb
   );
 
   return (
-    <div className="ss-page">
+    <div className="ss-page ss-page--sum">
       {/* ---------- العنوان + الفلاتر ---------- */}
       <section className="ss-card ss-pad ss-head">
         <div className="ss-head__top">
@@ -362,7 +363,8 @@ export const ItemSalesFinalSummaryDashboard: React.FC<ItemSalesFinalSummaryDashb
 
       {/* ---------- المؤشرات ---------- */}
       <div className="ss-kpis">
-        <div className="ss-card ss-kpi">
+        <div className="ss-card ss-kpi ss-kpi--sales">
+          <i className="ss-kpi__orb" aria-hidden="true" />
           <div className="ss-kpi__label">إجمالي المبيعات</div>
           <div className="ss-kpi__value">{formatCurrency(summary.totalAmount)}</div>
           {summary.growthPctValue !== null ? (
@@ -374,17 +376,20 @@ export const ItemSalesFinalSummaryDashboard: React.FC<ItemSalesFinalSummaryDashb
             <div className="ss-kpi__meta">{selectedMonth === 'all' ? 'كل الشهور' : MONTH_NAMES_MAP[selectedMonth]}</div>
           )}
         </div>
-        <div className="ss-card ss-kpi">
+        <div className="ss-card ss-kpi ss-kpi--qty">
+          <i className="ss-kpi__orb" aria-hidden="true" />
           <div className="ss-kpi__label">إجمالي الكمية</div>
           <div className="ss-kpi__value">{nf(summary.totalPieces)}</div>
           <div className="ss-kpi__meta">قطعة / كرتونة</div>
         </div>
-        <div className="ss-card ss-kpi">
+        <div className="ss-card ss-kpi ss-kpi--items">
+          <i className="ss-kpi__orb" aria-hidden="true" />
           <div className="ss-kpi__label">الأصناف المباعة</div>
           <div className="ss-kpi__value">{nf(summary.itemsCount)}</div>
           <div className="ss-kpi__meta">ضمن {nf(summary.families.length)} عائلة</div>
         </div>
-        <div className="ss-card ss-kpi">
+        <div className="ss-card ss-kpi ss-kpi--cust">
+          <i className="ss-kpi__orb" aria-hidden="true" />
           <div className="ss-kpi__label">العملاء النشطين</div>
           <div className="ss-kpi__value">{nf(summary.maxMonthCustomers)}</div>
           <div className="ss-kpi__meta">أعلى عدد عملاء في شهر</div>

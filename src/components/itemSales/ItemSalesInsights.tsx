@@ -25,6 +25,8 @@ import {
   ItemSalesSector,
 } from '../../services/itemSalesAggregateService';
 import '../../styles/sales-summary.css';
+import '../../styles/item-sales-polish.css';
+import '../../styles/item-sales-table-polish.css';
 
 /* ---------------------------------------------------------------- helpers */
 const nf = (n: number) => Math.round(n || 0).toLocaleString('en-US');
@@ -60,7 +62,7 @@ const makeMatcher = (query: string) => {
 };
 
 /** ألوان الدونات: كحلي الهوية + درجات متباعدة في الإضاءة (مش اللون بس) */
-const DONUT_COLORS = ['#1E3A8A', '#0F766E', '#D97706', '#7C3AED', '#0284C7', '#BE185D', '#94A3B8'];
+const DONUT_COLORS = ['#2563EB', '#14B8A6', '#F59E0B', '#8B5CF6', '#06B6D4', '#EC4899', '#94A3B8'];
 
 type Row = { key: string; name: string; code?: string; family?: string; p: number; a: number; m: number[]; mp: number[] };
 const emptyMonths = () => new Array(13).fill(0) as number[]; // index 1..12
@@ -313,7 +315,7 @@ export const ItemSalesInsights: React.FC<ItemSalesInsightsProps> = ({
     return (
       <React.Fragment key={r.key}>
         <tr className={isOpen ? 'is-open' : ''}>
-          <td className="ss-num ss-muted">{i + 1}</td>
+          <td className="ss-num ss-muted">{i < 3 ? <span className={`ss-medal ss-medal--${i + 1}`}>{i + 1}</span> : <span className="si-rk-n">{i + 1}</span>}</td>
           <td>
             <button
               type="button"
@@ -328,9 +330,9 @@ export const ItemSalesInsights: React.FC<ItemSalesInsightsProps> = ({
               </span>
             </button>
           </td>
-          {opts.showFamily && <td className="ss-muted si-col-family">{r.family}</td>}
+          {opts.showFamily && <td className="ss-muted si-col-family"><span className="si-fam">{r.family}</span></td>}
           <td className={`ss-num ${sortBy === 'p' ? 'ss-strong' : ''}`}>{nf(r.p)}</td>
-          <td className={`ss-num ${sortBy === 'a' ? 'ss-strong' : ''}`}>{formatCurrency(r.a)}</td>
+          <td className={`ss-num si-amt ${sortBy === 'a' ? 'ss-strong' : ''}`}>{formatCurrency(r.a)}</td>
           <td className="si-col-spark">
             <Spark values={sortBy === 'a' ? r.m : r.mp} months={months} highlight={peak} />
             {peak && months.length > 1 && <span className="si-peak">الأعلى: {monthName(peak)}</span>}
@@ -383,12 +385,28 @@ export const ItemSalesInsights: React.FC<ItemSalesInsightsProps> = ({
     );
   };
 
+  const monthMax = Math.max(0, ...data.monthTotals.map((d) => d.a));
+  const monthMin = Math.min(...(data.monthTotals.length ? data.monthTotals.map((d) => d.a) : [0]));
+  const top5 = (list: Array<{ name: string; a: number }>) => list.filter((x) => x.a > 0).sort((l, rr) => rr.a - l.a).slice(0, 5);
+  const topFamilies = useMemo(() => top5(Array.from(data.families.values()).map((f) => ({ name: f.name, a: f.a }))), [data]);
+  const topBranches = useMemo(() => top5(Array.from(data.branches.values()).map((b) => ({ name: b.name, a: b.a }))), [data]);
+  const topReps = useMemo(() => {
+    const m = new Map<string, number>();
+    rangeDocs.forEach((d) => d.reps.forEach((x) => { if (branch && x.w && x.w !== branch) return; m.set(x.n, (m.get(x.n) || 0) + x.a); }));
+    return top5(Array.from(m.entries()).map(([name, a]) => ({ name, a })));
+  }, [rangeDocs, branch]);
+  const rankCards = [
+    { k: 'fam', title: 'العائلات', tone: 'teal', rows: topFamilies },
+    { k: 'br', title: 'الفروع', tone: 'violet', rows: topBranches },
+    ...(lockedRepName ? [] : [{ k: 'rep', title: 'المناديب', tone: 'amber', rows: topReps }]),
+  ];
+
   const rows = tab === 'items' ? itemRows : tab === 'families' ? familyRows : branchRows;
   const shown = rows.slice(0, limit);
 
   /* ================================================================ render */
   return (
-    <div className="ss-page">
+    <div className="ss-page ss-page--ins">
       {/* -------- العنوان + الفلاتر -------- */}
       <section className="ss-card ss-pad ss-head">
         <div className="ss-head__top">
@@ -474,10 +492,10 @@ export const ItemSalesInsights: React.FC<ItemSalesInsightsProps> = ({
 
       {/* -------- المؤشرات -------- */}
       <div className="ss-kpis">
-        <div className="ss-card ss-kpi"><div className="ss-kpi__label">إجمالي المبيعات</div><div className="ss-kpi__value">{formatCurrency(data.totalA)}</div><div className="ss-kpi__meta">{months.length} شهر</div></div>
-        <div className="ss-card ss-kpi"><div className="ss-kpi__label">إجمالي الكمية</div><div className="ss-kpi__value">{nf(data.totalP)}</div><div className="ss-kpi__meta">قطعة / كرتونة</div></div>
-        <div className="ss-card ss-kpi"><div className="ss-kpi__label">الأصناف المباعة</div><div className="ss-kpi__value">{nf(data.items.size)}</div><div className="ss-kpi__meta">صنف له حركة</div></div>
-        <div className="ss-card ss-kpi"><div className="ss-kpi__label">العائلات</div><div className="ss-kpi__value">{nf(data.families.size)}</div><div className="ss-kpi__meta">عائلة لها مبيعات</div></div>
+        <div className="ss-card ss-kpi ss-kpi--sales"><i className="ss-kpi__orb" aria-hidden="true" /><div className="ss-kpi__label">إجمالي المبيعات</div><div className="ss-kpi__value">{formatCurrency(data.totalA)}</div><div className="ss-kpi__meta">{months.length} شهر</div></div>
+        <div className="ss-card ss-kpi ss-kpi--qty"><i className="ss-kpi__orb" aria-hidden="true" /><div className="ss-kpi__label">إجمالي الكمية</div><div className="ss-kpi__value">{nf(data.totalP)}</div><div className="ss-kpi__meta">قطعة / كرتونة</div></div>
+        <div className="ss-card ss-kpi ss-kpi--items"><i className="ss-kpi__orb" aria-hidden="true" /><div className="ss-kpi__label">الأصناف المباعة</div><div className="ss-kpi__value">{nf(data.items.size)}</div><div className="ss-kpi__meta">صنف له حركة</div></div>
+        <div className="ss-card ss-kpi ss-kpi--fam"><i className="ss-kpi__orb" aria-hidden="true" /><div className="ss-kpi__label">العائلات</div><div className="ss-kpi__value">{nf(data.families.size)}</div><div className="ss-kpi__meta">عائلة لها مبيعات</div></div>
       </div>
 
       {/* -------- الدونات + الشهور -------- */}
@@ -525,7 +543,7 @@ export const ItemSalesInsights: React.FC<ItemSalesInsightsProps> = ({
         </section>
 
         <section className="ss-card">
-          <div className="ss-cardhead"><h3 className="ss-h3"><BarChart3 className="w-4 h-4" />الإجمالي بالشهور</h3></div>
+          <div className="ss-cardhead"><h3 className="ss-h3"><BarChart3 className="w-4 h-4" />الإجمالي بالشهور</h3><div className="si-legend-inline" aria-hidden="true"><span><i className="is-max" />الأعلى</span><span><i className="is-min" />الأقل</span><span><i />عادي</span></div></div>
           <div className="ss-chart">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={data.monthTotals} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -541,12 +559,34 @@ export const ItemSalesInsights: React.FC<ItemSalesInsightsProps> = ({
                   }}
                 />
                 <Bar dataKey="a" radius={[6, 6, 0, 0]} maxBarSize={44} isAnimationActive={false}>
-                  {data.monthTotals.map((d) => <Cell key={d.month} className="ss-bar" />)}
+                  {data.monthTotals.map((d) => <Cell key={d.month} className={`ss-bar ${monthMax > 0 && d.a === monthMax && months.length > 1 ? 'is-max' : d.a === monthMin && months.length > 2 ? 'is-min' : ''}`} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </section>
+      </div>
+
+      {/* -------- أعلى 5 -------- */}
+      <div className="si-rk">
+        {rankCards.map((c) => {
+          const max = Math.max(1, ...c.rows.map((x) => x.a));
+          return (
+            <section key={c.k} className={`ss-card si-rkc si-rkc--${c.tone}`}>
+              <h3 className="si-rkc__t"><i aria-hidden="true" />أعلى {c.title}</h3>
+              {c.rows.length === 0 ? <div className="ss-empty">لا توجد بيانات</div> : c.rows.map((x, i) => (
+                <div key={x.name} className="si-rkc__r">
+                  <div className="si-rkc__l">
+                    <span className="si-rkc__n">{i + 1}</span>
+                    <span className="si-rkc__name" title={x.name}>{x.name}</span>
+                    <b className="ss-num">{compact(x.a)}</b>
+                  </div>
+                  <div className="ss-track"><div className="ss-fill" style={{ width: `${(x.a / max) * 100}%` }} /></div>
+                </div>
+              ))}
+            </section>
+          );
+        })}
       </div>
 
       {/* -------- الجدول الرئيسي بتبويبات -------- */}
@@ -558,7 +598,7 @@ export const ItemSalesInsights: React.FC<ItemSalesInsightsProps> = ({
               { k: 'families' as const, label: 'العائلات', icon: <Layers className="w-4 h-4" />, n: familyRows.length },
               { k: 'branches' as const, label: 'الفروع', icon: <Building2 className="w-4 h-4" />, n: branchRows.length },
             ]).map((t) => (
-              <button key={t.k} type="button" role="tab" aria-selected={tab === t.k} className={`si-tab ${tab === t.k ? 'is-active' : ''}`} onClick={() => setTab(t.k)}>
+              <button key={t.k} type="button" role="tab" data-k={t.k} aria-selected={tab === t.k} className={`si-tab ${tab === t.k ? 'is-active' : ''}`} onClick={() => setTab(t.k)}>
                 {t.icon}{t.label}<span className="si-tab__n">{nf(t.n)}</span>
               </button>
             ))}
