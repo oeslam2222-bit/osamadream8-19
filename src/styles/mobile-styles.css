@@ -441,3 +441,37 @@
     margin: 12px 0 !important;
   }
 }
+
+/* ==========================================================================
+   Unified Card Colors — match main page (DashboardHome) styling
+   Primary: #2563EB | Secondary: #0D9488 | Success: #16A34A
+   Card BG: white (light) / #111C2E (dark)
+   Border: slate-200 (light) / #26364D (dark)
+   ========================================================================== */
+
+/* Light mode: unify white/slate card backgrounds to main page card color */
+.bg-white.rounded-xl,
+.bg-white.rounded-2xl,
+.bg-white.rounded-3xl,
+.bg-slate-50.rounded-xl,
+.bg-slate-50.rounded-2xl,
+.bg-slate-50.rounded-3xl {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+
+/* Dark mode: unify to main page dark card color */
+.dark .bg-white.rounded-xl,
+.dark .bg-white.rounded-2xl,
+.dark .bg-white.rounded-3xl,
+.dark .bg-slate-50.rounded-xl,
+.dark .bg-slate-50.rounded-2xl,
+.dark .bg-slate-50.rounded-3xl,
+.dark .bg-slate-100.rounded-xl,
+.dark .bg-slate-100.rounded-2xl,
+.dark .bg-slate-100.rounded-3xl,
+.dark .bg-slate-800.rounded-2xl,
+.dark .bg-slate-800.rounded-3xl {
+  background-color: #111C2E !important;
+  border-color: #26364D !important;
+}
