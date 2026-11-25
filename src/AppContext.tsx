@@ -1876,6 +1876,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [announcements]);
 
   const [cart, setCart] = useState<CartItem[]>([]);
+  // createOrder بيتوزّع جوه contextValue المتخزّن بـ useMemo، و`cart` مش من الـ deps،
+  // فكان بيشوف سلة قديمة (فاضية) ويرفض الحفظ بـ «سلة الطلبية فارغة». بنقرا السلة الحالية من ref.
+  const cartRef = useRef<CartItem[]>(cart);
+  cartRef.current = cart;
 
   const [cloudinaryConfig, setCloudinaryConfig] = useState<CloudinaryConfig>(() => {
     try {
@@ -6508,6 +6512,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     shortageInvoice?: Invoice;
     message?: string;
   } => {
+    const cart = cartRef.current;
     if (cart.length === 0) {
       return { success: false, message: 'سلة الطلبية فارغة! يرجى إضافة أصناف أولاً.' };
     }

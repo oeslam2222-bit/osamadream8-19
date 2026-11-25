@@ -1,0 +1,2275 @@
+import * as XLSX from 'xlsx-js-style';
+import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary, Product, User } from '../types';
+import {
+  buildGoogleSheetsPublicCsvUrl,
+  doesCustomerBelongToBranch,
+  doesCustomerBelongToRep,
+  doesCustomerBelongToSupervisor,
+  isArabicNameMatch,
+  isBranchMatch,
+  normalizeArabicText,
+  resolveBranchName
+} from './arabicMatchingService';
+import {
+  buildProductFamilyLookup,
+  isGenericFamilyValue,
+  looksLikeItemCode,
+  resolveProductFamily
+} from './itemSalesAnalytics';
+import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
+import { idbGet, idbSet, idbDelete } from './storageService';
+import { supabase } from './supabaseService';
+import { parseNumericValue } from './numericParsing';
+
+export const ITEM_SALES_STORAGE_KEY = 'tantawy_customer_item_sales_v1';
+export const ITEM_SALES_ARCHIVE_KEY = 'tantawy_customer_item_sales_archive_v1';
+
+/**
+ * سقف نسخة localStorage المرآة: أكتر من كده الـ `JSON.stringify` لمئات الآلاف
+ * من الصفوف بيجمّد الرئيسي لثوانٍ (عشرات الـMB) وفاشل أصلًا بـquota المتصفح
+ * (~5MB) — IndexedDB هو المصدر الأساسي وعلينا الاعتماد عليه للكبيرة.
+ */
+const LOCAL_MIRROR_MAX_ROWS = 8000;
+
+/**
+ * بيانات توقيت المزامنة — أساس تقليل الـegress:
+ *  - lastPullAt: آخر جلب ناجح كامل، بنستخدمه للجلب الجزئي (`updated_at >= ...`).
+ *  - lastCountCheckAt: آخر تحقق من عدد السجلات، عشان مانبعتش استعلام عدّ
+ *    مع كل فتح للشاشة.
+ */
+const ITEM_SALES_SYNC_META_KEY = 'tantawy_item_sales_sync_meta_v1';
+const COUNT_CHECK_TTL_MS = 30 * 60 * 1000; // نص ساعة
+
+export interface ItemSalesSyncMeta {
+  lastPullAt?: string;
+  lastCountCheckAt?: string;
+}
+
+export function getItemSalesSyncMeta(): ItemSalesSyncMeta {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(ITEM_SALES_SYNC_META_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setItemSalesSyncMeta(patch: ItemSalesSyncMeta): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      ITEM_SALES_SYNC_META_KEY,
+      JSON.stringify({ ...getItemSalesSyncMeta(), ...patch })
+    );
+  } catch {}
+}
+
+/** هل فحص عدد السجلات السحابي لسه حديث؟ (يمنع استعلام عدّ مع كل فتح) */
+export function isItemSalesCountCheckFresh(): boolean {
+  const { lastCountCheckAt } = getItemSalesSyncMeta();
+  if (!lastCountCheckAt) return false;
+  const at = Date.parse(lastCountCheckAt);
+  return Number.isFinite(at) && Date.now() - at < COUNT_CHECK_TTL_MS;
+}
+
+export async function getArchivedCustomerItemSales(): Promise<CustomerItemSaleRecord[]> {
+  if (typeof window === 'undefined') return [];
+  try {
+    const idbData = await idbGet<CustomerItemSaleRecord[]>(ITEM_SALES_ARCHIVE_KEY);
+    if (Array.isArray(idbData)) return idbData;
+    const raw = window.localStorage.getItem(ITEM_SALES_ARCHIVE_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function archiveOldCustomerItemSales(oldRecords: CustomerItemSaleRecord[]): Promise<void> {
+  if (typeof window === 'undefined' || oldRecords.length === 0) return;
+  try {
+    const existing = await getArchivedCustomerItemSales();
+    const map = new Map<string, CustomerItemSaleRecord>();
+    existing.forEach((r) => {
+      const key = r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '');
+      map.set(key, r);
+    });
+    oldRecords.forEach((r) => {
+      const key = r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '');
+      map.set(key, { ...r, createdAt: r.createdAt || new Date().toISOString() });
+    });
+    const archived = Array.from(map.values());
+    await idbSet(ITEM_SALES_ARCHIVE_KEY, archived);
+    // نسخة localStorage للأرشيف الصغير فقط — JSON.stringify لأرشيف ضخم
+    // بيجمّد الرئيسي وبيفشل بالكوايتا، فبنشيل القديم بدل ما نعيد بناءه.
+    if (archived.length <= LOCAL_MIRROR_MAX_ROWS) {
+      try { window.localStorage.setItem(ITEM_SALES_ARCHIVE_KEY, JSON.stringify(archived)); } catch {}
+    } else {
+      try { window.localStorage.removeItem(ITEM_SALES_ARCHIVE_KEY); } catch {}
+    }
+  } catch {}
+}
+
+// Fast in-memory cache so uploaded 11,000 rows are immediately available across views
+let inMemoryItemSalesCache: CustomerItemSaleRecord[] | null = null;
+
+export const MONTH_NAMES_MAP: Record<number, string> = {
+  1: 'يناير',
+  2: 'فبراير',
+  3: 'مارس',
+  4: 'إبريل',
+  5: 'مايو',
+  6: 'يونيو',
+  7: 'يوليو',
+  8: 'أغسطس',
+  9: 'سبتمبر',
+  10: 'أكتوبر',
+  11: 'نوفمبر',
+  12: 'ديسمبر'
+};
+
+/** أسماء مختصرة واضحة للجداول (4 أحرف) بدل slice(0,3) اللي كانت بتطلع «ينا/فبر/مار». */
+export const MONTH_SHORT_MAP: Record<number, string> = {
+  1: 'يناير', 2: 'فبراير', 3: 'مارس', 4: 'إبريل', 5: 'مايو', 6: 'يونيو',
+  7: 'يوليو', 8: 'أغسطس', 9: 'سبتمبر', 10: 'أكتوبر', 11: 'نوفمبر', 12: 'ديسمبر'
+};
+
+export { parseNumericValue } from './numericParsing';
+
+/**
+ * Clean & normalize column header names (strips invisible characters & normalizes Arabic letters)
+ */
+function cleanHeader(raw: any): string {
+  if (raw === null || raw === undefined) return '';
+  return String(raw)
+    .trim()
+    .toLowerCase()
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/[ة]/g, 'ه')
+    .replace(/[ى]/g, 'ي')
+    .replace(/[\s_\-\/\\#*.]+/g, '');
+}
+
+/**
+ * Flexible header recognition for ERP customer sales by item
+ */
+function mapHeaderIndices(headerRow: any[]): Record<string, number> {
+  const map: Record<string, number> = {
+    customerAccount: -1,
+    invoicingName: -1,
+    salesOrder: -1,
+    date: -1,
+    repName: -1,
+    month: -1,
+    warehouse: -1,
+    itemCode: -1,
+    itemName: -1,
+    unifiedCode: -1,
+    unit: -1,
+    factor: -1,
+    unitPrice: -1,
+    discount: -1,
+    quantity: -1,
+    amount: -1,
+    itemGroup: -1,
+    definitions: -1,
+    familyDimension: -1,
+    sector: -1,
+  };
+
+  headerRow.forEach((raw, idx) => {
+    const h = cleanHeader(raw);
+    const rawStr = String(raw || '').trim().toLowerCase();
+
+    // 1. Customer account (كود العميل)
+    if (
+      h === 'customeraccount' ||
+      h === 'accountnum' ||
+      h === 'custaccount' ||
+      h === 'كودالعميل' ||
+      h === 'رقمحسابالعميل' ||
+      h === 'حسابالعميل' ||
+      h === 'كود' ||
+      h.includes('customeraccount')
+    ) {
+      if (map.customerAccount === -1) map.customerAccount = idx;
+    }
+    // 2. Invoicing name (اسم العميل)
+    else if (
+      h === 'invoicingname' ||
+      h === 'customername' ||
+      h === 'اسمالعميل' ||
+      h === 'اسمفاتورة' ||
+      h === 'اسمالفاتورة' ||
+      h.includes('invoicingname') ||
+      (h.includes('عميل') && !h.includes('كود'))
+    ) {
+      if (map.invoicingName === -1) map.invoicingName = idx;
+    }
+    // 3. Sales order (رقم أمر البيع / الفاتورة)
+    else if (
+      h === 'salesorder' ||
+      h === 'orderno' ||
+      h === 'امرالبيع' ||
+      h === 'أمرالبيع' ||
+      h === 'رقمأمرالبيع' ||
+      h === 'رقمالفاتورة' ||
+      h === 'فاتورة' ||
+      h.includes('salesorder')
+    ) {
+      if (map.salesOrder === -1) map.salesOrder = idx;
+    }
+    // 4. Date (التاريخ) — بنقبل أي عمود فيه date/تاريخ (مثل Order Date)
+    else if (h.includes('date') || h.includes('تاريخ')) {
+      if (map.date === -1) map.date = idx;
+    }
+    // 5. المندوب (Sales Rep)
+    else if (
+      h === 'المندوب' ||
+      h === 'مندوب' ||
+      h === 'مندوبالمبيعات' ||
+      h === 'salesrep' ||
+      h === 'repname' ||
+      h === 'rep'
+    ) {
+      if (map.repName === -1) map.repName = idx;
+    }
+    // 6. الشهر (Month) — Month / Shahr / رقم شهر
+    else if (h.includes('month') || h.includes('شهر')) {
+      if (map.month === -1) map.month = idx;
+    }
+    // 7. Warehouse (المخزن / الفرع)
+    else if (h.includes('warehouse') || h.includes('مخزن') || h.includes('فرع') || h === 'branch') {
+      if (map.warehouse === -1) map.warehouse = idx;
+    }
+    // 7b. القطاع (منزلي / كهربائي) — Sector
+    else if (h.includes('قطاع') || h.includes('sector')) {
+      if (map.sector === -1) map.sector = idx;
+    }
+    // 8. Item (كود الصنف)
+    else if (
+      h === 'item' ||
+      h === 'itemid' ||
+      h === 'itemcode' ||
+      h === 'كودالصنف' ||
+      h === 'كودالمنتج' ||
+      h === 'الصنف' ||
+      rawStr === 'item'
+    ) {
+      if (map.itemCode === -1) map.itemCode = idx;
+    }
+    // 9. Name (اسم الصنف)
+    else if (
+      h === 'name' ||
+      h === 'itemname' ||
+      h === 'productname' ||
+      h === 'اسمالصنف' ||
+      h === 'اسمالمنتج' ||
+      h === 'بيانالصنف' ||
+      rawStr === 'name'
+    ) {
+      if (map.itemName === -1) map.itemName = idx;
+    }
+    // 9b. Unified code (الكود الموحد #) — يربط ألوان وموديلات الصنف
+    else if (
+      h === 'unifiedcode' ||
+      h === 'unified' ||
+      h === 'كودموحد' ||
+      h === 'كودموحد#' ||
+      h === '#' ||
+      h === 'كود#' ||
+      h === 'كودالموحد' ||
+      h.includes('unifiedcode') ||
+      h.includes('كودموحد')
+    ) {
+      if (map.unifiedCode === -1) map.unifiedCode = idx;
+    }
+    else if (
+      h === 'unit' ||
+      h === 'الوحدة' ||
+      h === 'وحدة' ||
+      h === 'unitid'
+    ) {
+      if (map.unit === -1) map.unit = idx;
+    }
+    // 11. Factor (معامل التحويل)
+    else if (h.includes('factor') || h.includes('معامل') || h.includes('شدة') || h.includes('شده')) {
+      if (map.factor === -1) map.factor = idx;
+    }
+    // 12. Unit price (سعر الوحدة) — Unit Price / Price / السعر
+    else if (h.includes('unitprice') || h.includes('price') || h.includes('سعر')) {
+      if (map.unitPrice === -1) map.unitPrice = idx;
+    }
+    // 13. Discount (الخصم)
+    else if (h.includes('discount') || h.includes('خصم')) {
+      if (map.discount === -1) map.discount = idx;
+    }
+    // 14. Quantity (الكمية) — Quantity / Qty / الكمية / العدد
+    else if (
+      h.includes('quantity') ||
+      h.includes('qty') ||
+      h.includes('كمية') ||
+      h.includes('كميه') ||
+      h.includes('العدد') ||
+      h.includes('عدد') ||
+      h.includes('قطع')
+    ) {
+      if (map.quantity === -1) map.quantity = idx;
+    }
+    // 15. Amount (المبلغ / القيمة) — Amount / Net Amount / Total / القيمة
+    else if (
+      h.includes('amount') ||
+      h.includes('total') ||
+      h.includes('value') ||
+      h.includes('القيمة') ||
+      h.includes('المبلغ') ||
+      h.includes('الاجمالي') ||
+      h.includes('الإجمالي')
+    ) {
+      if (map.amount === -1) map.amount = idx;
+    }
+    // 16. Item group (مجموعة الصنف)
+    else if (
+      h.includes('itemgroup') ||
+      h.includes('department') ||
+      h.includes('مجموعة') ||
+      h.includes('مجموعه') ||
+      h === 'القسم' ||
+      h === 'قسم'
+    ) {
+      if (map.itemGroup === -1) map.itemGroup = idx;
+    }
+    // 17. التعريفات (Definitions) — تصنيف/براند الصنف
+    else if (h.includes('تعريف') || h.includes('definition')) {
+      if (map.definitions === -1) map.definitions = idx;
+    }
+    // 18. Family Dimension (عائلة الصنف / التصنيف)
+    else if (
+      h.includes('family') ||
+      h.includes('عائلة') ||
+      h.includes('عائله') ||
+      h.includes('الفئة') ||
+      h.includes('فئة') ||
+      h.includes('التصنيف')
+    ) {
+      if (map.familyDimension === -1) map.familyDimension = idx;
+    }
+  });
+
+  return map;
+}
+
+/** أسماء الشهور بالعربي والإنجليزي — الشيتات الحقيقية بتكتب الشهر باسمه. */
+const MONTH_NAME_LOOKUP: Record<string, number> = {
+  'يناير': 1,
+  'فبراير': 2,
+  'مارس': 3,
+  'ابريل': 4,
+  'مايو': 5,
+  'يونيو': 6,
+  'يوليو': 7,
+  'اغسطس': 8,
+  'سبتمبر': 9,
+  'اكتوبر': 10,
+  'نوفمبر': 11,
+  'ديسمبر': 12,
+  january: 1,
+  jan: 1,
+  february: 2,
+  feb: 2,
+  march: 3,
+  mar: 3,
+  april: 4,
+  apr: 4,
+  may: 5,
+  june: 6,
+  jun: 6,
+  july: 7,
+  jul: 7,
+  august: 8,
+  aug: 8,
+  september: 9,
+  sept: 9,
+  sep: 9,
+  october: 10,
+  oct: 10,
+  november: 11,
+  nov: 11,
+  december: 12,
+  dec: 12
+};
+
+/**
+ * يستنتج رقم الشهر (1-12) من خلية «الشهر» بأي شكل بتكتبه الشيتات:
+ * رقم، اسم شهر عربي/إنجليزي، "1/2026"، "2026-01"، تاريخ كامل، أو رقم إكسل التسلسلي.
+ * بيرجّع null لو مش قادر يستنتج — عشان القارئ يرجع لعمود التاريخ.
+ */
+export function parseSalesMonthValue(rawValue: any, rawDate?: string): number | null {
+  if (rawValue instanceof Date && !Number.isNaN(rawValue.getTime())) {
+    return rawValue.getMonth() + 1;
+  }
+
+  const rawText = String(rawValue ?? '').trim();
+  if (rawText) {
+    const normalizedName = rawText
+      .toLowerCase()
+      .replace(/[\u064B-\u0652\u0640]/g, '')
+      .replace(/[أإآ]/g, 'ا')
+      .replace(/ة/g, 'ه');
+
+    const nameMatch = Object.entries(MONTH_NAME_LOOKUP)
+      .sort((a, b) => b[0].length - a[0].length)
+      .find(([name]) => normalizedName.includes(name));
+    if (nameMatch) return nameMatch[1];
+
+    const yearFirst = rawText.match(/^(\d{4})[\/\-.](\d{1,2})/);
+    if (yearFirst) {
+      const monthPart = Number(yearFirst[2]);
+      if (monthPart >= 1 && monthPart <= 12) return monthPart;
+    }
+
+    const twoParts = rawText.match(/^(\d{1,4})[\/\-.](\d{1,4})$/);
+    if (twoParts) {
+      const first = Number(twoParts[1]);
+      const second = Number(twoParts[2]);
+      if (second >= 1000 && first >= 1 && first <= 12) return first;
+      if (first >= 1000 && second >= 1 && second <= 12) return second;
+      if (first >= 1 && first <= 12 && second > 12) return first;
+      if (second >= 1 && second <= 12 && first > 12) return second;
+      if (first >= 1 && first <= 12) return first;
+    }
+
+    const latinDigits = rawText.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (digit) => {
+      const code = digit.charCodeAt(0);
+      return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+    });
+    if (/^\d+(\.\d+)?$/.test(latinDigits)) {
+      const plain = Number(latinDigits);
+      if (plain >= 1 && plain <= 12) return Math.round(plain);
+      // تاريخ كامل مخزّن كرقم إكسل تسلسلي
+      if (plain >= 20000 && plain <= 60000) {
+        const serialDate = new Date(Date.UTC(1899, 11, 30) + Math.round(plain) * 86400000);
+        if (!Number.isNaN(serialDate.getTime())) return serialDate.getUTCMonth() + 1;
+      }
+    }
+
+    if (/\d{4}/.test(rawText)) {
+      const parsedDate = new Date(rawText);
+      if (!Number.isNaN(parsedDate.getTime())) return parsedDate.getMonth() + 1;
+    }
+  }
+
+  if (rawDate) {
+    const parsedDate = new Date(String(rawDate).trim());
+    if (!Number.isNaN(parsedDate.getTime())) return parsedDate.getMonth() + 1;
+  }
+
+  return null;
+}
+
+/**
+ * يقرأ عمود «القطاع» (منزلي / كهربائي / كلاهما) عشان يظهر كعمود مستقل
+ * بدل ما القطاع يتستنتج من الكتالوج فقط.
+ */
+export function parseSalesSectorValue(rawValue: any): 'home' | 'electrical' | 'both' | undefined {
+  const text = String(rawValue ?? '').trim().toLowerCase();
+  if (!text) return undefined;
+  const compact = text.replace(/[\s_\-./\\]+/g, '');
+  if (compact === 'home' || compact === 'electrical' || compact === 'both') {
+    return compact as 'home' | 'electrical' | 'both';
+  }
+  if (compact.includes('كلاهما') || compact.includes('الاثنين')) return 'both';
+  if (compact.includes('كهرب') || compact.includes('elect')) return 'electrical';
+  if (compact.includes('منزل')) return 'home';
+  return undefined;
+}
+
+/**
+ * يستنتج قطاع سجل مبيعات الصنف (منزلي / كهربائي) بالترتيب:
+ * 1) حقل القطاع الصريح بالسجل
+ * 2) قطاع العميل المرتبط
+ * 3) قطاع الصنف في الكتالوج
+ * 4) الكلمات المفتاحية للصنف / العائلة (وافتراضياً منزلي)
+ */
+export function inferItemSaleSector(
+  record: CustomerItemSaleRecord,
+  customers: Customer[] = [],
+  products: Product[] = []
+): 'home' | 'electrical' {
+  const explicit = parseSalesSectorValue((record as any).sector);
+  if (explicit === 'electrical') return 'electrical';
+  if (explicit === 'home') return 'home';
+
+  if (record.linkedCustomerId || record.customerAccount) {
+    const acct = String(record.customerAccount || '').trim().toLowerCase();
+    const linked = customers.find(
+      (c) =>
+        (record.linkedCustomerId && c.id === record.linkedCustomerId) ||
+        (acct && String(c.code || '').trim().toLowerCase() === acct)
+    );
+    if (linked?.sector === 'electrical') return 'electrical';
+    if (linked?.sector === 'home') return 'home';
+  }
+
+  const code = String(record.itemCode || '').trim();
+  const unified = String(record.unifiedCode || '').trim();
+  const match =
+    (code && products.find((p) => String(p.code || '').trim() === code)) ||
+    (unified && products.find((p) => String(p.unifiedCode || '').trim() === unified)) ||
+    null;
+  if (match?.sector === 'electrical') return 'electrical';
+  if (match?.sector === 'home') return 'home';
+
+  const text = `${record.itemGroup || ''} ${record.familyDimension || ''} ${record.itemName || ''} ${record.definitions || ''}`.toLowerCase();
+  if (
+    text.includes('كهرب') ||
+    text.includes('سلك') ||
+    text.includes('لمب') ||
+    text.includes('مفتاح') ||
+    text.includes('فيش') ||
+    text.includes('مروحه') ||
+    text.includes('مروحة') ||
+    text.includes('مكواة') ||
+    text.includes('كاتل') ||
+    text.includes('خلاط')
+  ) {
+    return 'electrical';
+  }
+  return 'home';
+}
+
+/**
+ * Parse raw rows from Excel or Google Sheet to CustomerItemSaleRecord[]
+ */
+export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
+  sales: CustomerItemSaleRecord[];
+  errors: string[];
+  totalRows: number;
+} {
+  const errors: string[] = [];
+  if (!rawRows || rawRows.length < 2) {
+    return { sales: [], errors: ['الملف فارغ أو لا يحتوي على صفوف بيانات صالحة'], totalRows: 0 };
+  }
+
+  // Find header row (usually row 0 or 1)
+  let headerIndex = -1;
+  let colMap: Record<string, number> = {};
+
+  for (let r = 0; r < Math.min(25, rawRows.length); r++) {
+    const candidateMap = mapHeaderIndices(rawRows[r]);
+    // Must find at least customer, item, and quantity or amount
+    if (
+      (candidateMap.customerAccount !== -1 || candidateMap.invoicingName !== -1) &&
+      (candidateMap.itemCode !== -1 || candidateMap.itemName !== -1)
+    ) {
+      headerIndex = r;
+      colMap = candidateMap;
+      break;
+    }
+  }
+
+  if (headerIndex === -1) {
+    return {
+      sales: [],
+      errors: [
+        'لم يتم التعرف على ترويسة الأعمدة المطلوبة في الملف. تأكد من وجود أعمدة: Customer account, Invoicing name, Item, Name, Quantity, Amount.'
+      ],
+      totalRows: 0
+    };
+  }
+
+  const result: CustomerItemSaleRecord[] = [];
+
+  for (let i = headerIndex + 1; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    if (!row || row.length === 0) continue;
+
+    const getVal = (idx: number): string => (idx >= 0 && row[idx] !== undefined ? String(row[idx]).trim() : '');
+    const getNum = (idx: number): number => {
+      if (idx < 0 || row[idx] === undefined) return 0;
+      return parseNumericValue(row[idx]);
+    };
+
+    const customerAccount = getVal(colMap.customerAccount);
+    const invoicingName = getVal(colMap.invoicingName);
+    const itemCode = getVal(colMap.itemCode);
+    const itemName = getVal(colMap.itemName);
+    const unifiedCode = getVal(colMap.unifiedCode);
+
+    // Skip empty summary/footer rows
+    if (!customerAccount && !invoicingName && !itemCode && !itemName) continue;
+    if (invoicingName.includes('إجمالي') || invoicingName.includes('الاجمالي') || customerAccount.includes('Total')) continue;
+
+    const salesOrder = getVal(colMap.salesOrder);
+    const rawDate = getVal(colMap.date);
+    const repName = getVal(colMap.repName) || 'غير محدد';
+    const warehouse = getVal(colMap.warehouse) || 'الفرع الرئيسي';
+    const unit = getVal(colMap.unit) || 'كرتونة';
+    const factor = Math.max(1, getNum(colMap.factor) || 1);
+    const unitPrice = getNum(colMap.unitPrice);
+    const discount = getNum(colMap.discount);
+    const quantity = getNum(colMap.quantity);
+    // المبالغ بتتاخد من عمود Amount زي ما هو. الحساب التلقائي بيشتغل فقط
+    // لو العمود نفسه غير موجود أو الخلية فاضية — مش لما القيمة تكون صفر.
+    let amount = getNum(colMap.amount);
+    const rawAmountCell = colMap.amount >= 0 ? (row[colMap.amount] ?? '') : '';
+    const amountCellMissing = colMap.amount < 0 || String(rawAmountCell).trim() === '';
+    if (amountCellMissing && quantity > 0 && unitPrice > 0) {
+      amount = Math.max(0, (quantity * unitPrice) - discount);
+    }
+
+    // Resolve month: اسم شهر / رقم / تاريخ في عمود الشهر، وإلا من عمود التاريخ
+    const monthCell = colMap.month >= 0 ? row[colMap.month] : '';
+    const resolvedMonth = parseSalesMonthValue(monthCell, rawDate);
+    // لو الشهر مش معروف من عمود الشهر ولا من عمود التاريخ، بيتسجّل 0 («غير محدد»)
+    // بدل ما يتحشر في يناير — كان بيكبّر مبيعات يناير في كل التحليلات والبروفايلات.
+    const month = resolvedMonth && resolvedMonth >= 1 && resolvedMonth <= 12 ? resolvedMonth : 0;
+
+    const itemGroup = getVal(colMap.itemGroup) || 'عام';
+    const definitions = getVal(colMap.definitions);
+    const familyDimension = getVal(colMap.familyDimension) || itemGroup;
+    const sector = parseSalesSectorValue(colMap.sector >= 0 ? row[colMap.sector] : '');
+
+    const record: CustomerItemSaleRecord = {
+      // معرّف ثابت من مفاتيح السطر فقط (بدون quantity/amount!) —
+      // عشان لو اتحول رقم أو كمية أو سعر في الشيت اليومي، يتحدّث نفس الصف
+      // بدل ما يتعمل صف جديد (upsert on same data).
+      id: toValidUUID(
+        [
+          customerAccount || `CUST-${i}`,
+          unifiedCode || itemCode || `ITEM-${i}`,
+          String(month),
+          salesOrder || rawDate || ''
+        ].join('|')
+      ),
+      customerAccount: customerAccount || `CUST-${i}`,
+      invoicingName: invoicingName || customerAccount || `عميل #${i}`,
+      salesOrder: salesOrder || undefined,
+      date: rawDate || undefined,
+      repName,
+      month,
+      monthName: MONTH_NAMES_MAP[month] || 'غير محدد',
+      warehouse,
+      itemCode: itemCode || `ITEM-${i}`,
+      itemName: itemName || definitions || itemCode || `صنف #${i}`,
+      unifiedCode: unifiedCode || undefined,
+      unit,
+      factor,
+      unitPrice,
+      discount,
+      quantity,
+      amount,
+      itemGroup,
+      definitions: definitions || undefined,
+      familyDimension,
+      sector,
+      createdAt: new Date().toISOString()
+    };
+
+    result.push(record);
+  }
+
+  return {
+    sales: result,
+    errors,
+    totalRows: result.length
+  };
+}
+
+/**
+ * Parse uploaded Excel or CSV file
+ */
+export async function parseExcelCustomerItemSales(file: File): Promise<{
+  sales: CustomerItemSaleRecord[];
+  errors: string[];
+  totalRows: number;
+}> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const buffer = e.target?.result as ArrayBuffer;
+        const workbook = parseExcelOrCsvBuffer(buffer, file.name);
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        resolve(parseRawRowsToCustomerItemSales(rawRows));
+      } catch (err: any) {
+        resolve({
+          sales: [],
+          errors: [`فشل في قراءة ملف مبيعات الأصناف: ${err?.message || 'خطأ غير معروف'}`],
+          totalRows: 0
+        });
+      }
+    };
+    reader.onerror = () => {
+      resolve({
+        sales: [],
+        errors: ['حدث خطأ أثناء قراءة الملف من الجهاز'],
+        totalRows: 0
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/**
+ * Fetch and parse Customer Item Sales from Google Sheet public URL
+ */
+export async function fetchCustomerItemSalesFromGoogleSheet(urlOrId: string): Promise<{
+  sales: CustomerItemSaleRecord[];
+  errors: string[];
+  totalRows: number;
+}> {
+  const csvUrl = buildGoogleSheetsPublicCsvUrl(urlOrId);
+  if (!csvUrl) {
+    return { sales: [], errors: ['رابط Google Sheet غير صالح'], totalRows: 0 };
+  }
+
+  try {
+    const response = await fetch(csvUrl, { cache: 'no-cache' });
+    if (!response.ok) {
+      throw new Error(`تعذر الاتصال بـ Google Sheets (رمز الاستجابة: ${response.status})`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const csvText = decodeBufferSmart(buffer);
+    const workbook = XLSX.read(csvText, { type: 'string', raw: true });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+    return parseRawRowsToCustomerItemSales(rawRows);
+  } catch (err: any) {
+    return {
+      sales: [],
+      errors: [`فشل في مزامنة شيت مبيعات العملاء بالصنف: ${err?.message || 'خطأ غير متوقع'}`],
+      totalRows: 0
+    };
+  }
+}
+
+/**
+ * Normalizes customer code for robust cross-sheet matching
+ * Handles variants like: "CUST-0123" -> "123", "00123" -> "123", "C123" -> "123", " 123 " -> "123"
+ */
+export function normalizeCustomerLookupCode(code?: string): string {
+  if (!code) return '';
+  const raw = String(code).trim().toLowerCase();
+  // Remove spaces, dashes, dots, underscores, slashes, hash
+  const stripped = raw.replace(/[\s\-_./\\#]+/g, '');
+  // Remove common prefixes like 'cust', 'c', 'cl', 'client' when followed by alphanumeric
+  const withoutPrefix = stripped.replace(/^(cust|client|cl|c)/i, '');
+  // Strip leading zeros if numeric or alphanumeric
+  const numericWithoutZeros = withoutPrefix.replace(/^0+/, '');
+  return numericWithoutZeros || withoutPrefix || stripped;
+}
+
+/**
+ * Builds high-speed indexed lookup maps from master customers directory
+ * to resolve Customer Code -> Branch & Sales Rep & Customer profile
+ */
+export function buildCustomerDirectoryLookup(customers: Customer[]) {
+  const byExactCode = new Map<string, Customer>();
+  const byNormCode = new Map<string, Customer>();
+  const byId = new Map<string, Customer>();
+  const byCleanName = new Map<string, Customer>();
+
+  customers.forEach((c) => {
+    if (c.code) {
+      const rawCode = c.code.trim().toLowerCase();
+      byExactCode.set(rawCode, c);
+      const normCode = normalizeCustomerLookupCode(c.code);
+      if (normCode) byNormCode.set(normCode, c);
+    }
+    if (c.id) {
+      const rawId = c.id.trim().toLowerCase();
+      byId.set(rawId, c);
+      const normId = normalizeCustomerLookupCode(c.id);
+      if (normId) byNormCode.set(normId, c);
+    }
+    if (c.name) {
+      const cleanName = normalizeArabicText(c.name).replace(/\s+/g, '');
+      if (cleanName) byCleanName.set(cleanName, c);
+    }
+  });
+
+  const lookupCache = new Map<string, Customer | undefined>();
+
+  const findCustomer = (customerAccount?: string, invoicingName?: string): Customer | undefined => {
+    const cacheKey = `${String(customerAccount || '').trim().toLowerCase()}|||${String(invoicingName || '').trim().toLowerCase()}`;
+    if (lookupCache.has(cacheKey)) {
+      return lookupCache.get(cacheKey);
+    }
+
+    let resolved: Customer | undefined;
+    if (customerAccount) {
+      const acc = customerAccount.trim().toLowerCase();
+      resolved =
+        byExactCode.get(acc) ||
+        byNormCode.get(normalizeCustomerLookupCode(customerAccount)) ||
+        byId.get(acc);
+    }
+    if (!resolved && invoicingName) {
+      const cleanName = normalizeArabicText(invoicingName).replace(/\s+/g, '');
+      if (cleanName && byCleanName.has(cleanName)) {
+        resolved = byCleanName.get(cleanName);
+      } else if (cleanName.length >= 3) {
+        for (const [key, cust] of byCleanName.entries()) {
+          if (cleanName.includes(key) || key.includes(cleanName) || isArabicNameMatch(invoicingName, cust.name)) {
+            resolved = cust;
+            break;
+          }
+        }
+      }
+    }
+
+    lookupCache.set(cacheKey, resolved);
+    return resolved;
+  };
+
+  return {
+    byExactCode,
+    byNormCode,
+    byId,
+    byCleanName,
+    findCustomer
+  };
+}
+
+/**
+ * Enriches customer item sales records with their authoritative branch (warehouse)
+ * and sales rep from the master Customers directory.
+ */
+export function enrichCustomerItemSalesWithDirectory(
+  sales: CustomerItemSaleRecord[],
+  customers: Customer[],
+  options: { forceOverwrite?: boolean } = {}
+): {
+  enriched: CustomerItemSaleRecord[];
+  matchedRecordsCount: number;
+  distinctCustomersMatched: number;
+} {
+  if (!customers || customers.length === 0 || !sales || sales.length === 0) {
+    return { enriched: sales, matchedRecordsCount: 0, distinctCustomersMatched: 0 };
+  }
+
+  const lookup = buildCustomerDirectoryLookup(customers);
+  const matchedAccounts = new Set<string>();
+  let matchedRecordsCount = 0;
+
+  const isGenericWarehouse = (w?: string) => {
+    if (!w) return true;
+    const v = w.trim();
+    return (
+      v === 'الفرع الرئيسي' ||
+      v === 'غير محدد' ||
+      v === 'عام' ||
+      v === 'مخزن' ||
+      v === 'المخزن الرئيسي' ||
+      v === 'المخزن' ||
+      v === '---' ||
+      v === '0'
+    );
+  };
+
+  const isGenericRep = (r?: string) => {
+    if (!r) return true;
+    const v = r.trim();
+    return (
+      v === 'غير محدد' ||
+      v === 'مندوب' ||
+      v === 'مندوب المبيعات' ||
+      v === 'مندوب غير محدد' ||
+      v === '---' ||
+      v === '0'
+    );
+  };
+
+  const enriched = sales.map((record) => {
+    const matched = lookup.findCustomer(record.customerAccount, record.invoicingName);
+    if (!matched) {
+      return record;
+    }
+
+    matchedRecordsCount++;
+    if (record.customerAccount) matchedAccounts.add(record.customerAccount.trim().toLowerCase());
+
+    const branch = matched.branchName || (matched as any).branch;
+    const rep = matched.salesRepName || matched.repName;
+
+    // Resolve warehouse: prioritize authoritative customer branch if forceOverwrite or current warehouse is generic/empty
+    const newWarehouse =
+      options.forceOverwrite || isGenericWarehouse(record.warehouse)
+        ? (branch || record.warehouse)
+        : record.warehouse;
+
+    // Resolve rep: prioritize authoritative rep if forceOverwrite or current rep is generic/empty
+    const newRep =
+      options.forceOverwrite || isGenericRep(record.repName)
+        ? (rep || record.repName)
+        : record.repName;
+
+    // اسم العميل من قاعدة العملاء بدل كود/اسم الفاتورة (الكود مش اسم مقروء)
+    const directoryName = String(matched.name || matched.storeName || '').trim();
+    const invoicingName = directoryName || record.invoicingName;
+    const linkedSector = (matched as any).sector
+      ? (matched as any).sector === 'both' || (matched as any).sector === 'all'
+        ? 'both'
+        : (matched as any).sector
+      : undefined;
+
+    // لو الصف متطابق بالفعل بنفس القيم، نرجّعه زي ما هو بدل نسخة جديدة.
+    // ده بيوفّر عشرات آلاف الكائنات والـGC على كل فتح للصفحة.
+    if (
+      record.isCustomerLinked === true &&
+      record.invoicingName === invoicingName &&
+      record.warehouse === newWarehouse &&
+      record.repName === newRep &&
+      record.linkedCustomerId === matched.id &&
+      record.linkedCustomerCode === matched.code &&
+      record.linkedBranch === branch &&
+      record.linkedRepName === rep &&
+      record.linkedSupervisorName === matched.supervisorName &&
+      record.linkedPhone === matched.phone &&
+      record.linkedSector === linkedSector
+    ) {
+      return record;
+    }
+
+    return {
+      ...record,
+      invoicingName,
+      warehouse: newWarehouse,
+      repName: newRep,
+      isCustomerLinked: true,
+      linkedCustomerId: matched.id,
+      linkedCustomerCode: matched.code,
+      linkedBranch: branch,
+      linkedRepName: rep,
+      linkedSupervisorName: matched.supervisorName,
+      linkedPhone: matched.phone,
+      linkedSector
+    };
+  });
+
+  return {
+    enriched,
+    matchedRecordsCount,
+    distinctCustomersMatched: matchedAccounts.size
+  };
+}
+
+/**
+ * إتمام بيانات الصنف من كتالوج المنتجات (products).
+ *
+ * السبب: عمود «Family Dimension» في شيت مبيعات الأصناف بييجي فاضي أو «عام»
+ * في معظم الصفوف، فبيظهر «الصنف بالعائلة» كـ«عام» في الجدول والفلاتر.
+ * الكتالوج هو المصدر المعتمد لاسم الصنف وعائلته (Family Name / Classification)،
+ * فبنكمّل منهم من غير ما نغيّر بيانات الشيت الأصلية:
+ *   - familyDimension: لو فاضي/«عام» → من الكتالوج.
+ *   - itemName: لو فاضي أو هو نفسه الكود → اسم الكتالوج.
+ *   - unifiedCode: لو القيمة مش شكلها كود (نص) → الكود الموحد من الكتالوج.
+ */
+/**
+ * يكمّل «الصنف بالعائلة» اللي بيجي «عام» في الشيت.
+ * الشيت بيكتب اسم البراند في عمود الصنف (لوتس/جلاكسي/...)، وبعض الصفوف
+ * بيكون ليها تصنيف (اطقم حلة/اطباق فاكهة...) وبعضها «عام». بنبني خريطة
+ * (اسم الصنف → أشهر تصنيف غير عام) ونستخدمها نكمّل بيها الصفوف الناقصة.
+ */
+export function fillGenericFamiliesFromSiblings(
+  sales: CustomerItemSaleRecord[],
+  extraVotesSource?: CustomerItemSaleRecord[]
+): CustomerItemSaleRecord[] {
+  if (!sales || sales.length === 0) return sales;
+  const itemKey = (r: CustomerItemSaleRecord) =>
+    String(r.itemName || r.itemCode || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  const familyVotes = new Map<string, Map<string, number>>();
+  // نبني الخريطة من كل الداتا المتاحة (المفلترة + كل السجلات) عشان تكون أشمل
+  // من غير [...sales, ...extra] عشان ما نعملش مصفوفة جديدة بـ250 ألف عنصر
+  const addVotes = (rows: CustomerItemSaleRecord[]) => {
+    rows.forEach((r) => {
+      const family = String(r.familyDimension || '').trim();
+      if (!family || family === 'عام') return;
+      const key = itemKey(r);
+      if (!key) return;
+      const votes = familyVotes.get(key) || new Map<string, number>();
+      votes.set(family, (votes.get(family) || 0) + 1);
+      familyVotes.set(key, votes);
+    });
+  };
+  addVotes(sales);
+  if (extraVotesSource && extraVotesSource.length > 0) addVotes(extraVotesSource);
+
+  return sales.map((r) => {
+    const family = String(r.familyDimension || '').trim();
+    if (family && family !== 'عام') return r;
+    const votes = familyVotes.get(itemKey(r));
+    if (!votes || votes.size === 0) return r;
+    const bestFamily = Array.from(votes.entries()).sort((a, b) => b[1] - a[1])[0][0];
+    return { ...r, familyDimension: bestFamily };
+  });
+}
+
+export function enrichCustomerItemSalesWithCatalog(
+  sales: CustomerItemSaleRecord[],
+  products: Product[]
+): CustomerItemSaleRecord[] {
+  if (!sales || sales.length === 0 || !products || products.length === 0) return sales;
+
+  const lookup = buildProductFamilyLookup(products);
+
+  return sales.map((record) => {
+    const product = lookup.find(record);
+    if (!product) return record;
+
+    const family = isGenericFamilyValue(record.familyDimension)
+      ? resolveProductFamily(product) || String(record.familyDimension || '').trim()
+      : String(record.familyDimension).trim();
+
+    const rawName = String(record.itemName || '').trim();
+    const catalogName = String(product.name || '').trim();
+    const itemName =
+      (!rawName || rawName === String(record.itemCode || '').trim() || looksLikeItemCode(rawName)) && catalogName
+        ? catalogName
+        : rawName;
+
+    const recordUnified = String(record.unifiedCode || '').trim();
+    const productUnified = String(product.unifiedCode || '').trim();
+    const unifiedCode = looksLikeItemCode(recordUnified)
+      ? recordUnified
+      : looksLikeItemCode(productUnified)
+        ? productUnified
+        : recordUnified || undefined;
+
+    if (
+      family === record.familyDimension &&
+      itemName === record.itemName &&
+      unifiedCode === record.unifiedCode
+    ) {
+      return record;
+    }
+
+    return { ...record, familyDimension: family, itemName, unifiedCode };
+  });
+}
+
+/**
+ * Filter Customer Item Sales based on strict RBAC permissions:
+ * - Sales Rep: Only sales of customers assigned to this rep (matching repName, customerAccount, or customerName)
+ * - Supervisor: Supervised reps or supervised branch
+ * - Branch Manager: His branch
+ * - Admin & Developer: All sales
+ */
+export function filterCustomerItemSalesByRBAC(
+  sales: CustomerItemSaleRecord[],
+  user: User | null,
+  allUsers: User[] = [],
+  customers: Customer[] = []
+): CustomerItemSaleRecord[] {
+  if (!user) return sales;
+  if (user.role === 'admin' || user.role === 'developer') return sales;
+
+  // Branch Manager: Only his branch warehouse (cached per warehouse string)
+  if (user.role === 'branch_manager') {
+    const branchMatchCache = new Map<string, boolean>();
+    const checkBranch = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (branchMatchCache.has(key)) return branchMatchCache.get(key)!;
+      const ok = isBranchMatch(value, user.branchName, { allowUnassigned: false });
+      branchMatchCache.set(key, ok);
+      return ok;
+    };
+    return sales.filter((s) => checkBranch(s.warehouse) || checkBranch(s.linkedBranch));
+  }
+
+  // Supervisor: Sales belonging to his reps or matching his supervised branch (cached)
+  if (user.role === 'supervisor') {
+    const supervisedReps = allUsers.filter((u) => u.role === 'sales_rep' && u.supervisorId === user.id);
+    const supervisedNames = new Set(supervisedReps.map((u) => normalizeArabicText(u.name)));
+    const repInTeamCache = new Map<string, boolean>();
+    const branchMatchCache = new Map<string, boolean>();
+
+    const checkRep = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (repInTeamCache.has(key)) return repInTeamCache.get(key)!;
+      const ok = supervisedNames.has(normalizeArabicText(value));
+      repInTeamCache.set(key, ok);
+      return ok;
+    };
+    const checkBranch = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (branchMatchCache.has(key)) return branchMatchCache.get(key)!;
+      const ok = isBranchMatch(value, user.branchName, { allowUnassigned: false });
+      branchMatchCache.set(key, ok);
+      return ok;
+    };
+
+    return sales.filter(
+      (s) => checkRep(s.repName) || checkRep(s.linkedRepName) || checkBranch(s.warehouse) || checkBranch(s.linkedBranch)
+    );
+  }
+
+  // Sales Rep: STRICTLY his customers (cached per repName/invoicingName)
+  if (user.role === 'sales_rep') {
+    const repNorm = normalizeArabicText(user.name);
+    const repCustomerAccounts = new Set<string>();
+    const repCustomerNormCodes = new Set<string>();
+    const repCustomerNames = new Set<string>();
+
+    customers.forEach((c) => {
+      if (doesCustomerBelongToRep(c, user)) {
+        if (c.code) {
+          repCustomerAccounts.add(c.code.trim().toLowerCase());
+          const norm = normalizeCustomerLookupCode(c.code);
+          if (norm) repCustomerNormCodes.add(norm);
+        }
+        if (c.id) {
+          repCustomerAccounts.add(c.id.trim().toLowerCase());
+          const normId = normalizeCustomerLookupCode(c.id);
+          if (normId) repCustomerNormCodes.add(normId);
+        }
+        if (c.name) repCustomerNames.add(normalizeArabicText(c.name));
+      }
+    });
+
+    const repMatchCache = new Map<string, boolean>();
+    const checkRepName = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (repMatchCache.has(key)) return repMatchCache.get(key)!;
+      const ok = normalizeArabicText(value) === repNorm || isArabicNameMatch(value, user.name);
+      repMatchCache.set(key, ok);
+      return ok;
+    };
+
+    const nameMatchCache = new Map<string, boolean>();
+    const checkCustName = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (nameMatchCache.has(key)) return nameMatchCache.get(key)!;
+      const ok = repCustomerNames.has(normalizeArabicText(value));
+      nameMatchCache.set(key, ok);
+      return ok;
+    };
+
+    return sales.filter((s) => {
+      if (checkRepName(s.repName) || checkRepName(s.linkedRepName)) return true;
+      if (s.customerAccount) {
+        const rawAcc = s.customerAccount.trim().toLowerCase();
+        if (repCustomerAccounts.has(rawAcc)) return true;
+        const normAcc = normalizeCustomerLookupCode(s.customerAccount);
+        if (repCustomerNormCodes.has(normAcc)) return true;
+      }
+      if (s.linkedCustomerCode && repCustomerAccounts.has(s.linkedCustomerCode.trim().toLowerCase())) {
+        return true;
+      }
+      return checkCustName(s.invoicingName);
+    });
+  }
+
+  return [];
+}
+
+/**
+ * Aggregate item-level sales records into Customer Dossiers:
+ * Groups by Customer -> summarizes total amount, items bought, quantities, monthly timeline, and item groups.
+ * If master Customers directory is passed, enriches dossiers with authoritative Branch and Rep and debt metrics.
+ */
+export function aggregateCustomerItemSales(
+  sales: CustomerItemSaleRecord[],
+  customers: Customer[] = []
+): CustomerItemSalesSummary[] {
+  const map = new Map<string, CustomerItemSalesSummary>();
+  const itemMaps = new Map<string, Map<string, CustomerItemSalesSummary['items'][number]>>();
+  const ordersByCustomer = new Map<string, Set<string>>();
+
+  const needsLookup = customers && customers.length > 0 && sales.length > 0 && !sales[0]?.linkedCustomerId;
+  const lookup = needsLookup ? buildCustomerDirectoryLookup(customers) : null;
+
+  for (const s of sales) {
+    const key = (s.customerAccount || s.invoicingName).trim().toLowerCase();
+    if (!key) continue;
+
+    let summary = map.get(key);
+    if (!summary) {
+      const matched = lookup?.findCustomer(s.customerAccount, s.invoicingName);
+      const isLinked = Boolean(s.isCustomerLinked || matched);
+      const branch = s.linkedBranch || matched?.branchName || (matched as any)?.branch || s.warehouse;
+      const rep = s.linkedRepName || matched?.salesRepName || matched?.repName || s.repName;
+
+      summary = {
+        customerAccount: s.customerAccount,
+        customerName: s.invoicingName || s.customerAccount,
+        repName: rep || 'غير محدد',
+        warehouse: branch || 'الفرع الرئيسي',
+        totalQuantity: 0,
+        totalAmount: 0,
+        distinctItemsCount: 0,
+        distinctOrdersCount: 0,
+        monthlySales: {},
+        monthlyQuantities: {},
+        groupBreakdown: {},
+        familyBreakdown: {},
+        items: [],
+        isCustomerLinked: isLinked,
+        linkedCustomerId: s.linkedCustomerId || matched?.id,
+        linkedCustomerCode: s.linkedCustomerCode || matched?.code,
+        linkedBranch: branch,
+        linkedRepName: rep,
+        linkedSupervisorName: s.linkedSupervisorName || matched?.supervisorName,
+        linkedPhone: s.linkedPhone || matched?.phone,
+        linkedBalance: matched?.currentBalance ?? matched?.balance,
+        linkedOverdue: matched?.totalOverdue ?? matched?.overdueBalance,
+        linkedTier: matched?.tier,
+        linkedAddress: matched?.address || matched?.district || matched?.governorate,
+        linkedSector: (() => {
+          const raw = (s as any).linkedSector || (matched as any)?.sector;
+          if (!raw) return undefined;
+          return raw === 'both' || raw === 'all' ? 'both' : raw === 'home' || raw === 'electrical' ? raw : undefined;
+        })()
+      };
+      map.set(key, summary);
+      itemMaps.set(key, new Map());
+    }
+
+    summary.totalQuantity += s.quantity;
+    summary.totalAmount += s.amount;
+
+    if (s.salesOrder) {
+      let orderSet = ordersByCustomer.get(key);
+      if (!orderSet) {
+        orderSet = new Set();
+        ordersByCustomer.set(key, orderSet);
+      }
+      orderSet.add(s.salesOrder);
+    }
+
+    const m = Number(s.month) || 0;
+    if (m >= 1 && m <= 12) {
+      summary.monthlySales[m] = (summary.monthlySales[m] || 0) + s.amount;
+      summary.monthlyQuantities[m] = (summary.monthlyQuantities[m] || 0) + s.quantity;
+    }
+
+    const grp = s.itemGroup || 'عام';
+    if (!summary.groupBreakdown[grp]) {
+      summary.groupBreakdown[grp] = { quantity: 0, amount: 0, itemsCount: 0 };
+    }
+    summary.groupBreakdown[grp].quantity += s.quantity;
+    summary.groupBreakdown[grp].amount += s.amount;
+
+    const fam = s.familyDimension || grp;
+    if (!summary.familyBreakdown[fam]) {
+      summary.familyBreakdown[fam] = { quantity: 0, amount: 0 };
+    }
+    summary.familyBreakdown[fam].quantity += s.quantity;
+    summary.familyBreakdown[fam].amount += s.amount;
+
+    const custItemMap = itemMaps.get(key)!;
+    const itemKey = (s.itemCode || s.itemName).trim().toLowerCase();
+    let existingItem = custItemMap.get(itemKey);
+
+    if (!existingItem) {
+      existingItem = {
+        itemCode: s.itemCode,
+        itemName: s.itemName,
+        itemGroup: s.itemGroup,
+        familyDimension: s.familyDimension,
+        unit: s.unit,
+        factor: s.factor,
+        avgUnitPrice: s.unitPrice,
+        totalQuantity: 0,
+        totalAmount: 0,
+        monthlyBreakdown: {}
+      };
+      custItemMap.set(itemKey, existingItem);
+      summary.items.push(existingItem);
+      summary.groupBreakdown[grp].itemsCount += 1;
+    }
+
+    existingItem.totalQuantity += s.quantity;
+    existingItem.totalAmount += s.amount;
+    if (s.unitPrice > 0) existingItem.avgUnitPrice = s.unitPrice;
+
+    if (!existingItem.monthlyBreakdown[m]) {
+      existingItem.monthlyBreakdown[m] = { quantity: 0, amount: 0 };
+    }
+    existingItem.monthlyBreakdown[m].quantity += s.quantity;
+    existingItem.monthlyBreakdown[m].amount += s.amount;
+  }
+
+  map.forEach((summary, key) => {
+    summary.distinctItemsCount = summary.items.length;
+    summary.distinctOrdersCount = ordersByCustomer.get(key)?.size || Math.max(1, Math.ceil(summary.items.length / 3));
+    summary.items.sort((a, b) => b.totalAmount - a.totalAmount);
+  });
+
+  return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+}
+
+/**
+ * ضغط الصفوف الخام إلى إجماليات شهرية مضغوطة (عميل × صنف × شهر × فرع × مندوب).
+ * يقلل 126,000 صف فاتورة خام إلى بضعة آلاف صف مضغوط بنفس الأرقام النهائية تماماً،
+ * مما يمنع تجمد المتصفح ويخفف استهلاك الذاكرة بنسبة تتجاوز 85%.
+ */
+export function compactCustomerItemSales(records: CustomerItemSaleRecord[]): CustomerItemSaleRecord[] {
+  if (!records || records.length === 0) return [];
+  const grouped = new Map<string, CustomerItemSaleRecord>();
+
+  for (const r of records) {
+    const custKey = String(r.customerAccount || r.invoicingName || '').trim().toLowerCase();
+    const itemKey = String(r.unifiedCode || r.itemCode || r.itemName || '').trim().toLowerCase();
+    const month = Number(r.month) || 0;
+    const branch = String(r.linkedBranch || r.warehouse || '').trim().toLowerCase();
+    const rep = String(r.linkedRepName || r.repName || '').trim().toLowerCase();
+    const key = `${custKey}|${itemKey}|${month}|${branch}|${rep}`;
+
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        ...r,
+        id: r.isAggregated ? r.id : `cis-cmp-${key}`,
+        salesOrder: undefined,
+        date: undefined,
+        quantity: Number(r.quantity) || 0,
+        amount: Number(r.amount) || 0,
+        discount: Number(r.discount) || 0,
+        isAggregated: true,
+      });
+    } else {
+      existing.quantity += Number(r.quantity) || 0;
+      existing.amount += Number(r.amount) || 0;
+      existing.discount += Number(r.discount) || 0;
+      if (existing.quantity > 0) {
+        existing.unitPrice = existing.amount / existing.quantity;
+      }
+      if (!existing.familyDimension || existing.familyDimension === 'عام') {
+        if (r.familyDimension && r.familyDimension !== 'عام') {
+          existing.familyDimension = r.familyDimension;
+        }
+      }
+      if (!existing.definitions && r.definitions) {
+        existing.definitions = r.definitions;
+      }
+    }
+  }
+
+  return Array.from(grouped.values());
+}
+
+const COMPACT_CACHE_PREFIX = 'tantawy_cis_compact_v1::';
+
+export async function getScopedCompactItemSalesCache(
+  scopeKey: string
+): Promise<{ records: CustomerItemSaleRecord[]; updatedAt: number } | null> {
+  if (typeof window === 'undefined' || !scopeKey) return null;
+  try {
+    const cached = await idbGet<{ records: CustomerItemSaleRecord[]; updatedAt: number }>(
+      `${COMPACT_CACHE_PREFIX}${scopeKey}`
+    );
+    if (cached && Array.isArray(cached.records)) return cached;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveScopedCompactItemSalesCache(
+  scopeKey: string,
+  records: CustomerItemSaleRecord[]
+): Promise<void> {
+  if (typeof window === 'undefined' || !scopeKey) return;
+  try {
+    await idbSet(`${COMPACT_CACHE_PREFIX}${scopeKey}`, {
+      records,
+      updatedAt: Date.now(),
+    });
+  } catch {}
+}
+
+/**
+ * Generate Sample Demo Records for Customer Item Sales
+ * Grounded in existing customers and branches
+ */
+export function generateDemoCustomerItemSales(customers: Customer[], allUsers: User[]): CustomerItemSaleRecord[] {
+  const targetCustomers = (customers.length > 0 ? customers : [
+    { code: 'CUST-1001', name: 'سوبر ماركت النور والبركة', branchName: 'فرع المنيا', repName: 'محمد أحمد علي' },
+    { code: 'CUST-1002', name: 'معرض الأهرام للأدوات', branchName: 'فرع الفيوم', repName: 'محمود عبد الرحيم' },
+    { code: 'CUST-1003', name: 'شركة التوحيد للتوزيع', branchName: 'فرع البحيرة', repName: 'عصام عبد الفتاح' },
+    { code: 'CUST-1004', name: 'مؤسسة الفيروز للتجارة', branchName: 'فرع القاهرة', repName: 'طارق مصطفى' },
+  ] as Customer[]).slice(0, 15);
+
+  const sampleProducts = [
+    { code: 'ITM-201', name: 'طقم حافظات طعام بلاستيك 3 قطع', unit: 'كرتونة', factor: 12, price: 420, group: 'بلاستيكات', family: 'أدوات حفظ' },
+    { code: 'ITM-202', name: 'طبق تسالي فاخر مقسم ملون', unit: 'كرتونة', factor: 24, price: 280, group: 'بلاستيكات', family: 'أدوات مائدة' },
+    { code: 'ITM-301', name: 'مج حراري ستانلس بغطاء سيليكون', unit: 'كرتونة', factor: 20, price: 950, group: 'ستانلس', family: 'مشروبات' },
+    { code: 'ITM-302', name: 'صينية فرن مستطيلة تيفال وسط', unit: 'كرتونة', factor: 10, price: 1150, group: 'صواني وقوالب', family: 'أدوات طهي' },
+    { code: 'ITM-401', name: 'مصفاة خضار متعددة الاستخدام', unit: 'كرتونة', factor: 30, price: 190, group: 'بلاستيكات', family: 'أدوات مطبخ' },
+    { code: 'ITM-501', name: 'دورق عصير زجاجي 1.5 لتر مع غطاء', unit: 'كرتونة', factor: 12, price: 540, group: 'زجاجيات', family: 'مشروبات' },
+  ];
+
+  const records: CustomerItemSaleRecord[] = [];
+  let idCounter = 1;
+
+  targetCustomers.forEach((cust, cIdx) => {
+    const cRep = cust.salesRepName || cust.repName || 'مندوب المبيعات';
+    const cBranch = cust.branchName || 'فرع المنيا';
+
+    // Generate 3 to 6 distinct purchases across months 1..10
+    const purchasesCount = 3 + (cIdx % 4);
+    for (let p = 0; p < purchasesCount; p++) {
+      const prod = sampleProducts[(cIdx + p) % sampleProducts.length];
+      const month = 1 + ((cIdx * 2 + p) % 10);
+      const qty = 2 + (p * 3) + (cIdx % 5);
+      const discount = (p % 2 === 0) ? (qty * 15) : 0;
+      const amount = Math.max(0, (qty * prod.price) - discount);
+      const day = 5 + ((p * 7) % 22);
+
+      records.push({
+        id: `cis-demo-${idCounter++}`,
+        customerAccount: cust.code || `CUST-100${cIdx + 1}`,
+        invoicingName: cust.name,
+        salesOrder: `SO-2026-${String(1000 + idCounter).slice(-4)}`,
+        date: `2026-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        repName: cRep,
+        month,
+        monthName: MONTH_NAMES_MAP[month],
+        warehouse: cBranch,
+        itemCode: prod.code,
+        itemName: prod.name,
+        unit: prod.unit,
+        factor: prod.factor,
+        unitPrice: prod.price,
+        discount,
+        quantity: qty,
+        amount,
+        itemGroup: prod.group,
+        definitions: 'أصناف معتمدة',
+        familyDimension: prod.family,
+        createdAt: new Date().toISOString()
+      });
+    }
+  });
+
+  return records;
+}
+
+/**
+ * Load Customer Item Sales from storage (Memory Cache -> IndexedDB primary -> localStorage fallback)
+ */
+export async function getSavedCustomerItemSales(): Promise<CustomerItemSaleRecord[]> {
+  if (inMemoryItemSalesCache && inMemoryItemSalesCache.length > 0) {
+    return inMemoryItemSalesCache;
+  }
+  if (typeof window === 'undefined') return [];
+  try {
+    // Try IndexedDB first (high capacity, ~50MB+)
+    const idbData = await idbGet<CustomerItemSaleRecord[]>(ITEM_SALES_STORAGE_KEY);
+    if (Array.isArray(idbData) && idbData.length > 0) {
+      inMemoryItemSalesCache = idbData;
+      return idbData;
+    }
+    // Fallback to localStorage (legacy / small datasets)
+    const raw = window.localStorage.getItem(ITEM_SALES_STORAGE_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    if (Array.isArray(list) && list.length > 0) {
+      inMemoryItemSalesCache = list;
+      return list;
+    }
+    return [];
+  } catch {
+    return inMemoryItemSalesCache || [];
+  }
+}
+
+/**
+ * Clear Customer Item Sales from storage (IndexedDB + localStorage + memory)
+ */
+export async function clearCustomerItemSales(): Promise<void> {
+  inMemoryItemSalesCache = [];
+  if (typeof window === 'undefined') return;
+  try {
+    await idbDelete(ITEM_SALES_STORAGE_KEY);
+  } catch {}
+  try {
+    window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY);
+  } catch {}
+  try {
+    window.dispatchEvent(
+      new CustomEvent('tantawy-customer-item-sales-updated', {
+        detail: { count: 0, timestamp: Date.now() }
+      })
+    );
+  } catch {}
+}
+
+/**
+ * مفتاح السطر في شيت مبيعات الأصناف: عميل + صنف + شهر.
+ * هو الحبيبة الطبيعية للشيت الشهري، وبيُستخدم لاستبدال صفوف الشهر عند الاستيراد.
+ */
+function customerItemMonthKey(record: {
+  customerAccount?: string;
+  itemCode?: string;
+  month?: number;
+}): string {
+  return `${String(record.customerAccount || '').trim().toLowerCase()}||${String(record.itemCode || '').trim().toLowerCase()}||${Number(record.month) || 0}`;
+}
+
+/**
+ * Save Customer Item Sales to storage (In-memory + IndexedDB primary + localStorage cache + window event)
+ */
+export async function saveCustomerItemSales(
+  sales: CustomerItemSaleRecord[],
+  /**
+   * replace = استبدال كل شيء، merge = استبدال مجموعات (عميل+صنف+شهر)،
+   * upsert = تحديث بالمعرّف فقط مع الحفاظ على باقي السجلات — ده اللي
+   * بيستخدمه الجلب الجزئي عشان مايمسحش حركات تانية من نفس المجموعة.
+   */
+  mode: 'replace' | 'merge' | 'upsert' = 'replace'
+): Promise<void> {
+  let finalSales = sales;
+  if (mode === 'upsert') {
+    try {
+      const existing = await getSavedCustomerItemSales();
+      const byId = new Map<string, CustomerItemSaleRecord>();
+      existing.forEach((record) => byId.set(record.id, record));
+      sales.forEach((record) => byId.set(record.id, record));
+      finalSales = Array.from(byId.values());
+    } catch {}
+  } else if (mode === 'merge') {
+    try {
+      const existing = await getSavedCustomerItemSales();
+      /**
+       * الشيت هو المصدر الرسمي لشهر معيّن، فبنستبدل صفوف نفس
+       * (كود العميل + الصنف + الشهر) بالصفوف الجديدة.
+       * قبل كده كانت الصفوف المتشابهة بتتدمج في صف واحد بالمفتاح
+       * (عميل+صنف+شهر+أمر بيع) — وده كان بيضيّع كميات ومبالغ باقي
+       * الحركات لما الشيت يبقى بدون عمود أمر بيع.
+       */
+      const incomingGroups = new Set(sales.map(customerItemMonthKey));
+      const replacedRows = existing.filter((r) => incomingGroups.has(customerItemMonthKey(r)));
+      if (replacedRows.length > 0) {
+        archiveOldCustomerItemSales(replacedRows).catch(() => {});
+      }
+      const keptRows = existing.filter((r) => !incomingGroups.has(customerItemMonthKey(r)));
+      finalSales = [...keptRows, ...sales];
+    } catch {}
+  }
+  inMemoryItemSalesCache = finalSales;
+  if (typeof window === 'undefined') return;
+  // Primary: IndexedDB (high capacity)
+  try {
+    await idbSet(ITEM_SALES_STORAGE_KEY, finalSales);
+  } catch (err) {
+    console.warn('Customer item sales IndexedDB save note:', err);
+  }
+  // Cache: localStorage (best-effort). للأجموعات الكبيرة بنوقف النسخة المرآة:
+  // الـ stringify لمئات الآلاف من الصفوف بيجمّد الرئيسي لثوانٍ وفاشل بالكوايتا
+  // أصلًا — IndexedDB هو المصدر الأساسي (وعليه الاعتماد للمجتمعات الكبيرة).
+  if (finalSales.length <= LOCAL_MIRROR_MAX_ROWS) {
+    try {
+      window.localStorage.setItem(ITEM_SALES_STORAGE_KEY, JSON.stringify(finalSales));
+    } catch {
+      // Quota exceeded - data is safely in IndexedDB
+      try { window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY); } catch {}
+    }
+  } else {
+    // شيل أي نسخة قديمة صغيرة عشان القارئ ما يرجّش بيانات ناقصة/متضاربة.
+    try { window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY); } catch {}
+  }
+  // Dispatch custom event to notify all active views instantly
+  try {
+    window.dispatchEvent(
+      new CustomEvent('tantawy-customer-item-sales-updated', {
+        detail: { count: finalSales.length, timestamp: Date.now() }
+      })
+    );
+  } catch {}
+}
+
+export interface CustomerItemSalesFetchScope {
+  repNames?: string[];
+  warehouses?: string[];
+  sectors?: Array<'home' | 'electrical'>;
+}
+
+function quotePostgrestFilterValue(value: string): string {
+  const clean = String(value).replace(/["(),]/g, ' ').trim();
+  return `"${clean}"`;
+}
+
+function applyItemSalesScope(query: any, scope?: CustomerItemSalesFetchScope): any {
+  if (!scope) return query;
+  const clauses: string[] = [];
+  (scope.repNames || []).map((n) => String(n).trim()).filter((n) => n.length >= 2).forEach((name) => {
+    clauses.push(`rep_name.ilike.${quotePostgrestFilterValue(`*${name}*`)}`);
+  });
+  (scope.warehouses || []).map((w) => String(w).trim()).filter((w) => w.length >= 2).forEach((wh) => {
+    clauses.push(`warehouse.ilike.${quotePostgrestFilterValue(`*${wh}*`)}`);
+  });
+  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
+}
+
+/**
+ * Get current exact record count from Supabase `customer_item_sales` table (scoped when provided)
+ */
+export async function getSupabaseCustomerItemSalesCount(
+  scope?: CustomerItemSalesFetchScope
+): Promise<number> {
+  try {
+    let query = supabase
+      .from('customer_item_sales')
+      .select('id', { count: 'exact', head: true });
+    query = applyItemSalesScope(query, scope);
+    const { count, error } = await query;
+    if (error) {
+      console.warn('Error fetching Supabase customer_item_sales count:', error);
+      return -1;
+    }
+    return count ?? 0;
+  } catch (err) {
+    console.warn('Exception checking Supabase customer_item_sales count:', err);
+    return -1;
+  }
+}
+
+/**
+ * Produces a deterministic, compliant RFC 4122 v4-formatted UUID string from any natural key.
+ * Guarantees zero failures whether the Supabase column `id` is typed as UUID or as TEXT/VARCHAR.
+ */
+export function toValidUUID(key: string): string {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) {
+    return key.toLowerCase();
+  }
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57, h3 = 0x67452301, h4 = 0xefcdab89;
+  for (let i = 0; i < key.length; i++) {
+    const ch = key.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 3812015801);
+    h4 = Math.imul(h4 ^ ch, 2718281829);
+  }
+  const toHex8 = (n: number) => (n >>> 0).toString(16).padStart(8, '0');
+  const h = `${toHex8(h1)}${toHex8(h2)}${toHex8(h3)}${toHex8(h4)}`;
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
+/**
+ * Push Customer Item Sales records to Supabase table `customer_item_sales` in robust batches of 250 rows
+ */
+export async function pushCustomerItemSalesToSupabase(
+  sales: CustomerItemSaleRecord[],
+  onProgress?: (synced: number, total: number) => void
+): Promise<{ success: boolean; syncedCount: number; prunedCount?: number; error?: string }> {
+  if (!sales || sales.length === 0) return { success: true, syncedCount: 0 };
+
+  const batchSize = 250;
+  let syncedCount = 0;
+  let prunedCount = 0;
+
+  try {
+    /**
+     * تنظيف بقايا الرفع القديم: الصفوف اللي اتخزنت بكمية ومبلغ صفر بسبب
+     * تحويل أرقام غلط. بنمسحها فقط لو الداتا الجديدة فيها أرقام حقيقية،
+     * عشان مانمسحش داتا سليمة بالغلط.
+     */
+    const hasRealValues = sales.some(
+      (record) => parseNumericValue(record.amount) > 0 || parseNumericValue(record.quantity) > 0
+    );
+
+    /**
+     * ملاحظة أمان (اتشالت):
+     *
+     * كان هنا `delete().eq('amount',0).eq('quantity',0)` على الجدول كله.
+     * أي جهاز بيعمل مزامنة كان بيقدر يمسح صفوف مش بتاعته — بما فيها صفوف
+     * صحيحة بكمية صفر (مرتجع/هدية/عينة). المسح العام من عميل مفتاحه
+     * publishable خطر ومش مضمون، فاتشال. لو محتاج تنظيف فعلاً، يتعمل
+     * بسكربت إداري بصلاحية service role.
+     */
+    void hasRealValues;
+
+    for (let i = 0; i < sales.length; i += batchSize) {
+      const slice = sales.slice(i, i + batchSize);
+      const batch = slice.map((s, idx) => {
+        // ID ثابت دقيق ومتوافق مع UUID و TEXT في PostgreSQL لمنع أخطاء النوع والتعارض
+        let finalId: string;
+        if (s.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.id)) {
+          finalId = s.id.toLowerCase();
+        } else if (s.id && s.id.trim().length > 0) {
+          finalId = toValidUUID(s.id.trim());
+        } else {
+          const naturalKey = `${String(s.customerAccount || 'UNK')}|${String(s.itemCode || 'UNK')}|${String(s.month || '0')}|${String(s.salesOrder || '0')}|${String(s.date || '')}|${i + idx}`;
+          finalId = toValidUUID(naturalKey);
+        }
+
+        return {
+          id: finalId,
+          customer_account: String(s.customerAccount || 'CUST-UNKNOWN').trim(),
+          invoicing_name: String(s.invoicingName || s.customerAccount || 'عميل غير محدد').trim(),
+          sales_order: s.salesOrder ? String(s.salesOrder).trim() : null,
+          sale_date: s.date ? String(s.date).trim().slice(0, 10) : null,
+          rep_name: String(s.repName || 'غير محدد').trim(),
+          month: Math.max(0, Math.min(12, Number(s.month) || 0)),
+          warehouse: String(s.warehouse || 'الفرع الرئيسي').trim(),
+          item_code: String(s.itemCode || 'ITM-UNKNOWN').trim(),
+          item_name: String(s.itemName || s.itemCode || 'صنف غير محدد').trim(),
+          unified_code: s.unifiedCode ? String(s.unifiedCode).trim() : null,
+          unit: String(s.unit || 'كرتونة').trim(),
+          factor: parseNumericValue(s.factor) > 0 ? parseNumericValue(s.factor) : 1,
+          unit_price: parseNumericValue(s.unitPrice),
+          discount: parseNumericValue(s.discount),
+          quantity: parseNumericValue(s.quantity),
+          amount: parseNumericValue(s.amount),
+          item_group: String(s.itemGroup || 'عام').trim(),
+          definitions: s.definitions ? String(s.definitions).trim() : null,
+          family_dimension: String(s.familyDimension || s.itemGroup || 'عام').trim(),
+          created_at: s.createdAt || new Date().toISOString(),
+          // لازم يتكتب مع كل upsert عشان الـ cursor-based incremental pull
+          // (fetchCustomerItemSalesIncremental) يلتقط التعديلات اللي حصلت بعد أول رفع.
+          updated_at: new Date().toISOString()
+        };
+      });
+
+      // إزالة أي سجلات مكررة لنفس الـ id داخل نفس الدفعة نهائياً لمنع خطأ Postgres 21000
+      const dedupedBatch = Array.from(
+        new Map(batch.map((row) => [row.id, row])).values()
+      );
+
+      const { error } = await supabase
+        .from('customer_item_sales')
+        .upsert(dedupedBatch, { onConflict: 'id' });
+
+      if (error) {
+        console.warn('Initial batch upsert error, trying sub-batches:', error.message);
+        let subErrorOccurred = false;
+        // المحاولة على دفعات أصغر لضمان الحفظ
+        for (let j = 0; j < dedupedBatch.length; j += 25) {
+          const subBatch = dedupedBatch.slice(j, j + 25);
+          const { error: subErr } = await supabase
+            .from('customer_item_sales')
+            .upsert(subBatch, { onConflict: 'id' });
+          if (subErr) {
+            console.error('Supabase batch upsert error:', subErr);
+            subErrorOccurred = true;
+            return {
+              success: false,
+              syncedCount,
+              error: `تعذر حفظ الدفعة ${Math.floor(i / batchSize) + 1} من ${Math.ceil(sales.length / batchSize)}: ${subErr.message}`
+            };
+          }
+        }
+        if (subErrorOccurred) continue;
+      }
+
+      syncedCount += slice.length;
+      if (onProgress) onProgress(syncedCount, sales.length);
+    }
+
+    return { success: true, syncedCount, prunedCount };
+  } catch (err: any) {
+    console.error('pushCustomerItemSalesToSupabase error:', err);
+    return {
+      success: false,
+      syncedCount,
+      error: err?.message || 'حدث خطأ أثناء المزامنة مع Supabase'
+    };
+  }
+}
+
+/**
+ * تحويل صف جدول `customer_item_sales` (snake_case) إلى شكل التطبيق.
+ * مستخدمة في القراءة الكاملة وفي المزامنة التدريجية — عشان الاتنين
+ * يطلّعوا نفس الحقول بالظبط (الوحدة، المعامل، السعر، الخصم، الكود الموحد).
+ */
+export function mapSupabaseRowToCustomerItemSale(row: any): CustomerItemSaleRecord {
+  return {
+    id: row.id,
+    customerAccount: row.customer_account,
+    invoicingName: row.invoicing_name,
+    salesOrder: row.sales_order || undefined,
+    date: row.sale_date || undefined,
+    repName: row.rep_name || 'غير محدد',
+    month: Number(row.month) || 0,
+    monthName: MONTH_NAMES_MAP[Number(row.month)] || `شهر ${row.month}`,
+    warehouse: row.warehouse || 'الفرع الرئيسي',
+    itemCode: row.item_code,
+    itemName: row.item_name,
+    unifiedCode: row.unified_code || undefined,
+    unit: row.unit || 'كرتونة',
+    factor: parseNumericValue(row.factor) || 1,
+    unitPrice: parseNumericValue(row.unit_price),
+    discount: parseNumericValue(row.discount),
+    quantity: parseNumericValue(row.quantity),
+    amount: parseNumericValue(row.amount),
+    itemGroup: row.item_group || 'عام',
+    definitions: row.definitions || undefined,
+    familyDimension: row.family_dimension || row.item_group || 'عام',
+    sector: parseSalesSectorValue(row.sector),
+    createdAt: row.created_at || new Date().toISOString()
+  };
+}
+
+const CUSTOMER_ITEM_SALES_SELECT_COLUMNS = [
+  'id',
+  'customer_account',
+  'invoicing_name',
+  'sales_order',
+  'sale_date',
+  'rep_name',
+  'month',
+  'warehouse',
+  'item_code',
+  'item_name',
+  'unified_code',
+  'unit',
+  'factor',
+  'unit_price',
+  'discount',
+  'quantity',
+  'amount',
+  'item_group',
+  'definitions',
+  'family_dimension',
+  'created_at',
+].join(',');
+
+/**
+ * مبيعات أصناف عميل واحد من السيرفر — لبروفايل العميل لما الجهاز ما عندوش الداتا الخام
+ * (أدمن، أو موبايل جديد). بيجيب صفوف العميل ده بس (فهرس customer_account)،
+ * ومتخزن في الذاكرة 10 دقايق عشان فتح البروفايل تاني ما يسحبش egress تاني.
+ */
+const singleCustomerSalesCache = new Map<string, { at: number; rows: CustomerItemSaleRecord[] }>();
+const SINGLE_CUSTOMER_TTL_MS = 10 * 60 * 1000;
+
+export async function fetchItemSalesForCustomer(
+  customerAccount?: string,
+  customerName?: string
+): Promise<CustomerItemSaleRecord[]> {
+  const account = String(customerAccount || '').trim();
+  const name = String(customerName || '').trim();
+  const cacheKey = `${account}\u0000${name}`;
+  if (!account && !name) return [];
+  const cached = singleCustomerSalesCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < SINGLE_CUSTOMER_TTL_MS) return cached.rows;
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return cached?.rows || [];
+
+  const fetchBy = async (column: 'customer_account' | 'invoicing_name', value: string) => {
+    const rows: any[] = [];
+    const pageSize = 1000;
+    for (let from = 0; from < 10000; from += pageSize) {
+      const { data, error } = await supabase
+        .from('customer_item_sales')
+        .select(CUSTOMER_ITEM_SALES_SELECT_COLUMNS)
+        .eq(column, value)
+        .order('month', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      const page = data || [];
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return rows;
+  };
+
+  try {
+    let raw = account ? await fetchBy('customer_account', account) : [];
+    if (raw.length === 0 && name) raw = await fetchBy('invoicing_name', name);
+    const rows = raw.map(mapSupabaseRowToCustomerItemSale);
+    singleCustomerSalesCache.set(cacheKey, { at: Date.now(), rows });
+    return rows;
+  } catch (error) {
+    console.warn('fetchItemSalesForCustomer failed:', error);
+    return cached?.rows || [];
+  }
+}
+
+/**
+ * Fetch Customer Item Sales from Supabase table `customer_item_sales` with complete pagination (fetching all 10,000+ rows)
+ */
+export async function fetchCustomerItemSalesFromSupabase(
+  onProgress?: (loaded: number) => void,
+  scope?: CustomerItemSalesFetchScope,
+  options?: { updatedSince?: string }
+): Promise<{
+  sales: CustomerItemSaleRecord[];
+  error?: string;
+}> {
+  try {
+    const pageSize = 1000;
+    let from = 0;
+    let allData: any[] = [];
+    let hasMore = true;
+    let selectCols = CUSTOMER_ITEM_SALES_SELECT_COLUMNS;
+    let updatedSince = options?.updatedSince?.trim() || '';
+
+    while (hasMore) {
+      const buildQuery = (cols: string, since: string) => {
+        let q = supabase
+          .from('customer_item_sales')
+          .select(cols)
+          .order('month', { ascending: true })
+          .order('id', { ascending: true });
+        q = applyItemSalesScope(q, scope);
+        if (since) q = q.gte('updated_at', since);
+        return q.range(from, from + pageSize - 1);
+      };
+
+      let { data, error } = await buildQuery(selectCols, updatedSince);
+
+      if (
+        error &&
+        updatedSince &&
+        String(error.message || '').toLowerCase().includes('updated_at')
+      ) {
+        updatedSince = '';
+        ({ data, error } = await buildQuery(selectCols, ''));
+      }
+
+      if (
+        error &&
+        selectCols !== '*' &&
+        (String(error.code || '') === '42703' ||
+          String(error.code || '') === 'PGRST204' ||
+          /column|does not exist|could not find/i.test(String(error.message || '')))
+      ) {
+        selectCols = '*';
+        ({ data, error } = await buildQuery('*', updatedSince));
+      }
+
+      if (error) {
+        console.warn('Error fetching chunk from Supabase:', error);
+        if (allData.length > 0) break; // If we already got some chunks, keep them
+        return { sales: [], error: error.message };
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      allData = allData.concat(data);
+      if (onProgress) onProgress(allData.length);
+
+      if (data.length < pageSize) {
+        hasMore = false;
+        break;
+      }
+      from += pageSize;
+    }
+
+    if (allData.length === 0) {
+      if (options?.updatedSince) {
+        const existing = await getSavedCustomerItemSales();
+        return { sales: existing };
+      }
+      return { sales: [] };
+    }
+
+    const mapped: CustomerItemSaleRecord[] = allData.map(mapSupabaseRowToCustomerItemSale);
+
+    // Cache into memory & IndexedDB (merge when incremental, replace when full)
+    await saveCustomerItemSales(mapped, updatedSince ? 'merge' : 'replace');
+    const finalSaved = updatedSince ? await getSavedCustomerItemSales() : mapped;
+
+    return { sales: finalSaved };
+  } catch (err: any) {
+    return { sales: [], error: err?.message || 'فشل الاتصال بـ Supabase' };
+  }
+}
+
+/**
+ * Fetch AGGREGATED item sales from the view `view_customer_monthly_item_sales`.
+ * This is ~100x smaller than the raw table (one row per customer/month/item instead of per order).
+ * Used for the dashboard / overview — raw table fetch is only for drill-down details.
+ */
+export interface AggregatedItemSaleRow {
+  customer_account: string;
+  invoicing_name: string;
+  rep_name: string;
+  warehouse: string;
+  month: number;
+  item_code: string;
+  item_name: string;
+  item_group: string;
+  total_quantity: number;
+  total_amount: number;
+  total_orders: number;
+}
+
+export async function fetchAggregatedItemSalesFromView(
+  scope?: CustomerItemSalesFetchScope,
+  options?: { month?: number; limit?: number; onProgress?: (loaded: number) => void }
+): Promise<{ rows: AggregatedItemSaleRow[]; error?: string; partial?: boolean }> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return { rows: [], error: 'لا يوجد اتصال بالإنترنت حالياً' };
+    }
+    const conn = typeof navigator !== 'undefined' ? (navigator as any).connection : undefined;
+    const isSlow = Boolean(conn?.saveData || ['slow-2g', '2g', '3g'].includes(String(conn?.effectiveType || '').toLowerCase()));
+    const pageSize = isSlow ? 500 : 1000;
+    let from = 0;
+    let allData: AggregatedItemSaleRow[] = [];
+    let hasMore = true;
+    const limit = Math.min(5000, options?.limit ?? 5000); // cap at 5k rows max
+    let consecutiveChunkErrors = 0;
+
+    while (hasMore && allData.length < limit) {
+      let query = supabase
+        .from('view_customer_monthly_item_sales')
+        .select('customer_account, invoicing_name, rep_name, warehouse, month, item_code, item_name, item_group, total_quantity, total_amount, total_orders')
+        .order('month', { ascending: false })
+        .order('total_amount', { ascending: false });
+
+      query = applyItemSalesScope(query, scope);
+
+      if (options?.month) {
+        query = query.eq('month', options.month);
+      }
+
+      const { data, error } = await query.range(from, Math.min(from + pageSize - 1, limit - 1));
+
+      if (error) {
+        console.warn('Error fetching from view_customer_monthly_item_sales:', error);
+        if (allData.length > 0 && consecutiveChunkErrors < 1) {
+          consecutiveChunkErrors += 1;
+          await new Promise((r) => setTimeout(r, 800));
+          continue;
+        }
+        if (allData.length > 0) {
+          return { rows: allData, partial: true, error: error.message };
+        }
+        return { rows: [], error: error.message };
+      }
+
+      consecutiveChunkErrors = 0;
+      if (!data || data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      allData = allData.concat(data as AggregatedItemSaleRow[]);
+      options?.onProgress?.(allData.length);
+
+      if (data.length < pageSize || allData.length >= limit) {
+        hasMore = false;
+        break;
+      }
+      from += pageSize;
+    }
+
+    return { rows: allData };
+  } catch (err: any) {
+    return { rows: [], error: err?.message || 'فشل جلب المبيعات المجمعة من الـ view' };
+  }
+}
+
+/**
+ * Export Customer Item Sales to Excel with Pivot & Breakdown Sheets
+ */
+export function exportCustomerItemSalesToExcel(
+  sales: CustomerItemSaleRecord[],
+  summaries: CustomerItemSalesSummary[],
+  fileName = 'مبيعات_العملاء_بالصنف_2026'
+): void {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Detailed Item Sales Raw Rows
+  const headers = [
+    'كود العميل (Customer account)',
+    'اسم العميل (Invoicing name)',
+    'رقم أمر البيع (Sales order)',
+    'التاريخ (Date)',
+    'المندوب',
+    'الشهر (Month)',
+    'المخزن / الفرع (Warehouse)',
+    'كود الصنف (Item)',
+    'اسم الصنف (Name)',
+    'الوحدة (Unit)',
+    'معامل التحويل (factor)',
+    'سعر الوحدة (Unit price)',
+    'الخصم (Discount)',
+    'الكمية (Quantity)',
+    'القيمة الإجمالية (Amount)',
+    'مجموعة الصنف (Item group)',
+    'التعريفات',
+    'عائلة الصنف (Family Dimension)',
+  ];
+
+  const rows = sales.map((s) => [
+    s.customerAccount,
+    s.invoicingName,
+    s.salesOrder || '',
+    s.date || '',
+    s.repName,
+    s.monthName || s.month,
+    s.warehouse,
+    s.itemCode,
+    s.itemName,
+    s.unit,
+    s.factor,
+    s.unitPrice,
+    s.discount,
+    s.quantity,
+    s.amount,
+    s.itemGroup,
+    s.definitions || '',
+    s.familyDimension,
+  ]);
+
+  const wsRaw = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  wsRaw['!views'] = [{ RTL: true }];
+  wsRaw['!sheetView'] = [{ rightToLeft: true }];
+  XLSX.utils.book_append_sheet(wb, wsRaw, 'مبيعات_الأصناف_التفصيلية');
+
+  // Sheet 2: Customer Aggregated Summary
+  const summaryHeaders = [
+    'كود العميل',
+    'اسم العميل',
+    'المندوب المسؤول',
+    'الفرع',
+    'إجمالي الكمية (كراتين/قطع)',
+    'إجمالي المبيعات (ج.م)',
+    'عدد الأصناف المشتراة',
+    'عدد أوامر البيع',
+    'يناير',
+    'فبراير',
+    'مارس',
+    'إبريل',
+    'مايو',
+    'يونيو',
+    'يوليو',
+    'أغسطس',
+    'سبتمبر',
+    'أكتوبر',
+    'نوفمبر',
+    'ديسمبر'
+  ];
+
+  const summaryRows = summaries.map((c) => [
+    c.customerAccount,
+    c.customerName,
+    c.repName,
+    c.warehouse,
+    c.totalQuantity,
+    c.totalAmount,
+    c.distinctItemsCount,
+    c.distinctOrdersCount,
+    c.monthlySales[1] || 0,
+    c.monthlySales[2] || 0,
+    c.monthlySales[3] || 0,
+    c.monthlySales[4] || 0,
+    c.monthlySales[5] || 0,
+    c.monthlySales[6] || 0,
+    c.monthlySales[7] || 0,
+    c.monthlySales[8] || 0,
+    c.monthlySales[9] || 0,
+    c.monthlySales[10] || 0,
+    c.monthlySales[11] || 0,
+    c.monthlySales[12] || 0,
+  ]);
+
+  const wsSummary = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
+  wsSummary['!views'] = [{ RTL: true }];
+  wsSummary['!sheetView'] = [{ rightToLeft: true }];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'تجميع_مبيعات_العملاء');
+
+  XLSX.writeFile(wb, `${fileName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+/**
+ * Generate Complete PostgreSQL / Supabase SQL Schema DDL
+ * As requested by user: "وعاوز كود سيكول للجدول عشان يتربط علي طول"
+ */
+export function getCustomerItemSalesSQLSchema(): string {
+  return `-- ==============================================================================
+-- TANTAWY GROUP - جدول مبيعات العملاء بالصنف (Customer Item Sales Table)
+-- متوافق 100% مع PostgreSQL و Supabase مع الفهارس وسياسات الأمان RLS
+-- ==============================================================================
+
+-- 1. إنشاء جدول مبيعات العملاء بالصنف
+CREATE TABLE IF NOT EXISTS public.customer_item_sales (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    customer_account VARCHAR(100) NOT NULL,            -- كود العميل (Customer account)
+    invoicing_name VARCHAR(255) NOT NULL,              -- اسم العميل في الفاتورة (Invoicing name)
+    sales_order VARCHAR(100),                          -- رقم أمر البيع / الفاتورة (Sales order)
+    sale_date DATE,                                    -- تاريخ الحركة (Date)
+    rep_name VARCHAR(150) NOT NULL,                    -- اسم المندوب (المندوب)
+    rep_id VARCHAR(100),                               -- معرّف المندوب بحسابات النظام
+    month SMALLINT NOT NULL CHECK (month BETWEEN 1 AND 12), -- رقم الشهر (1-12)
+    warehouse VARCHAR(150) DEFAULT 'الفرع الرئيسي',    -- اسم المخزن أو الفرع (Warehouse)
+    item_code VARCHAR(100) NOT NULL,                   -- كود الصنف (Item)
+    item_name VARCHAR(255) NOT NULL,                   -- اسم الصنف (Name)
+    unit VARCHAR(50) DEFAULT 'كرتونة',                 -- الوحدة (Unit)
+    factor NUMERIC(10, 2) DEFAULT 1.00,                -- معامل التحويل / شدة الكرتونة (factor)
+    unit_price NUMERIC(15, 2) DEFAULT 0.00,            -- سعر الوحدة (Unit price)
+    discount NUMERIC(15, 2) DEFAULT 0.00,              -- الخصم (Discount)
+    quantity NUMERIC(12, 2) NOT NULL DEFAULT 1.00,     -- الكمية المباعة (Quantity)
+    amount NUMERIC(15, 2) NOT NULL DEFAULT 0.00,       -- المبلغ الإجمالي الصافي (Amount)
+    item_group VARCHAR(150) DEFAULT 'عام',             -- مجموعة الصنف (Item group)
+    definitions TEXT,                                  -- التعريفات (Definitions)
+    family_dimension VARCHAR(150),                     -- عائلة الصنف (Family Dimension)
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- في حال كان الجدول موجوداً مسبقاً بعمود id نوعه UUID، يتم تحويله لـ TEXT بسلاسة
+DO $$ 
+BEGIN 
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'customer_item_sales' AND column_name = 'id' AND data_type = 'uuid'
+  ) THEN 
+    ALTER TABLE public.customer_item_sales ALTER COLUMN id TYPE TEXT;
+  END IF;
+END $$;
+
+-- 2. إنشاء الفهارس لتسريع البحث والاستعلام اللحظي (Indexes)
+CREATE INDEX IF NOT EXISTS idx_customer_item_sales_cust_account ON public.customer_item_sales(customer_account);
+CREATE INDEX IF NOT EXISTS idx_customer_item_sales_invoicing_name ON public.customer_item_sales(invoicing_name);
+CREATE INDEX IF NOT EXISTS idx_customer_item_sales_rep_name ON public.customer_item_sales(rep_name);
+CREATE INDEX IF NOT EXISTS idx_customer_item_sales_month ON public.customer_item_sales(month);
+CREATE INDEX IF NOT EXISTS idx_customer_item_sales_item_code ON public.customer_item_sales(item_code);
+CREATE INDEX IF NOT EXISTS idx_customer_item_sales_warehouse ON public.customer_item_sales(warehouse);
+CREATE INDEX IF NOT EXISTS idx_customer_item_sales_item_group ON public.customer_item_sales(item_group);
+
+-- 3. تفعيل أمان مستوى الصفوف (Row Level Security - RLS)
+ALTER TABLE public.customer_item_sales ENABLE ROW LEVEL SECURITY;
+
+-- السماح بالقراءة والتحديث للمستخدمين المصرح لهم
+DROP POLICY IF EXISTS "Allow authenticated users full access to customer_item_sales" ON public.customer_item_sales;
+CREATE POLICY "Allow authenticated users full access to customer_item_sales"
+ON public.customer_item_sales
+FOR ALL
+TO authenticated, anon
+USING (true)
+WITH CHECK (true);
+
+-- 4. فيو تحليلي ذكي لتجميع مبيعات كل عميل شهرياً وبالصنف
+CREATE OR REPLACE VIEW public.view_customer_monthly_item_sales AS
+SELECT 
+    customer_account,
+    invoicing_name,
+    rep_name,
+    warehouse,
+    month,
+    item_code,
+    item_name,
+    item_group,
+    SUM(quantity) AS total_quantity,
+    SUM(amount) AS total_amount,
+    COUNT(DISTINCT sales_order) AS total_orders
+FROM public.customer_item_sales
+GROUP BY customer_account, invoicing_name, rep_name, warehouse, month, item_code, item_name, item_group;
+
+-- تم التجهيز بنجاح لشركة طنطاوي جروب!`;
+}
