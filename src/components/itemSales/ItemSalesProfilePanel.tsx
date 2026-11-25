@@ -2,6 +2,7 @@ import { Layers, Loader2, Package, TrendingUp, Users } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { normalizeArabicText } from '../../services/arabicMatchingService';
 import {
+  fetchItemSalesForCustomer,
   fillGenericFamiliesFromSiblings,
   getSavedCustomerItemSales,
   MONTH_NAMES_MAP,
@@ -65,7 +66,7 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
     };
   }, []);
 
-  const scoped = useMemo(() => {
+  const localScoped = useMemo(() => {
     // نكمّل العائلات «عام» من الصفوف التانية لنفس الصنف قبل التحليل (من كل الداتا)
     const source = fillGenericFamiliesFromSiblings(records, records);
     if (customerAccount || customerName) {
@@ -113,6 +114,37 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
 
     return [];
   }, [records, customerAccount, customerName, repName]);
+
+  /**
+   * بروفايل العميل: لو الجهاز ما عندوش مبيعات العميل ده (أدمن أو موبايل جديد ما نزّلش
+   * الشيت الخام)، نجيب صفوف العميل ده بس من السيرفر بدل ما نعرض «لا توجد مبيعات».
+   */
+  const isCustomerProfile = Boolean(customerAccount || customerName);
+  const [remoteRows, setRemoteRows] = useState<CustomerItemSaleRecord[] | null>(null);
+  const [isRemoteLoading, setIsRemoteLoading] = useState(false);
+  useEffect(() => {
+    setRemoteRows(null);
+  }, [customerAccount, customerName]);
+  useEffect(() => {
+    if (isLoading || !isCustomerProfile || localScoped.length > 0 || remoteRows !== null) return;
+    let cancelled = false;
+    setIsRemoteLoading(true);
+    fetchItemSalesForCustomer(customerAccount, customerName)
+      .then((rows) => {
+        if (!cancelled) setRemoteRows(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setIsRemoteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, isCustomerProfile, localScoped.length, remoteRows, customerAccount, customerName]);
+
+  const scoped = useMemo(() => {
+    if (localScoped.length > 0 || !remoteRows || remoteRows.length === 0) return localScoped;
+    return fillGenericFamiliesFromSiblings(remoteRows, records.length > 0 ? records : remoteRows);
+  }, [localScoped, remoteRows, records]);
 
   const summary = useMemo(() => {
     const families = new Map<string, number>();
@@ -194,7 +226,7 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
     };
   }, [scoped]);
 
-  if (isLoading) {
+  if (isLoading || isRemoteLoading) {
     return (
       <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] p-4 flex items-center gap-2 text-[11px] font-bold text-[var(--app-text-muted)]">
         <Loader2 className="w-4 h-4 animate-spin" />
