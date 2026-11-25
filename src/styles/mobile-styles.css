@@ -475,3 +475,181 @@
   background-color: #111C2E !important;
   border-color: #26364D !important;
 }
+
+/* ==========================================================================
+   Flutter-like Mobile App Styling
+   Material Design inspired: elevation cards, bottom nav, app bar, ripple
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  /* --- Material Design Card Elevation --- */
+  .bg-white.rounded-xl,
+  .bg-white.rounded-2xl,
+  .bg-white.rounded-3xl,
+  .bg-slate-50.rounded-xl,
+  .bg-slate-50.rounded-2xl,
+  .bg-slate-50.rounded-3xl {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+    border-radius: 16px;
+  }
+
+  .dark .bg-white.rounded-xl,
+  .dark .bg-white.rounded-2xl,
+  .dark .bg-white.rounded-3xl,
+  .dark .bg-slate-50.rounded-xl,
+  .dark .bg-slate-50.rounded-2xl,
+  .dark .bg-slate-50.rounded-3xl,
+  .dark .bg-slate-100.rounded-xl,
+  .dark .bg-slate-100.rounded-2xl,
+  .dark .bg-slate-100.rounded-3xl,
+  .dark .bg-slate-800.rounded-2xl,
+  .dark .bg-slate-800.rounded-3xl {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2);
+    border-radius: 16px;
+  }
+
+  /* --- Material Ripple Effect on Tap --- */
+  button, .btn, [role="button"] {
+    position: relative;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:active, .btn:active, [role="button"]:active {
+    transform: scale(0.97);
+    transition: transform 0.1s ease;
+  }
+
+  /* --- Card spacing like Flutter (16px margins, 12px gaps) --- */
+  .space-y-4 > * + * {
+    margin-top: 12px;
+  }
+
+  .space-y-3 > * + * {
+    margin-top: 8px;
+  }
+
+  /* --- Flutter-style list tiles --- */
+  .list-item, li {
+    min-height: 56px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  /* --- Floating Action Button (FAB) --- */
+  .fab, .floating-action-button, [class*="fab"] {
+    position: fixed;
+    bottom: 80px;
+    right: 16px;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    z-index: 45;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* --- Material Design input fields --- */
+  input, select, textarea {
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 16px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--app-primary);
+    box-shadow: 0 0 0 3px var(--app-focus);
+  }
+
+  /* --- Chip / Badge styling (Material) --- */
+  .badge, .chip, .tag {
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  /* --- Divider (Material style) --- */
+  .divider, hr {
+    border: none;
+    height: 1px;
+    background-color: var(--app-border);
+    margin: 16px 0;
+  }
+
+  /* --- Avatar (Flutter style) --- */
+  .avatar {
+    border-radius: 50%;
+    overflow: hidden;
+  }
+
+  /* --- Empty state (Flutter style) --- */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+  }
+
+  .empty-state-icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
+    opacity: 0.6;
+  }
+
+  /* --- Progress indicator (Material) --- */
+  .progress-bar {
+    height: 4px;
+    border-radius: 2px;
+    background-color: var(--app-border);
+    overflow: hidden;
+  }
+
+  .progress-bar > * {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  /* --- Snackbar / Toast (Flutter style) --- */
+  [role="alert"], .toast, .snackbar {
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin: 8px 16px;
+  }
+
+  /* --- Dialog / Modal (Material style) --- */
+  [role="dialog"], .modal {
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  }
+
+  /* --- Tab bar (Material) --- */
+  .tabs, .tab-bar {
+    border-bottom: none;
+    background-color: var(--app-card);
+  }
+
+  .tab {
+    padding: 12px 16px;
+    font-weight: 600;
+    border-bottom: 2px solid transparent;
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+
+  .tab.is-active, .tab.active {
+    border-bottom-color: var(--app-primary);
+    color: var(--app-primary);
+  }
+}
