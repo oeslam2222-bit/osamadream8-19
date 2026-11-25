@@ -112,11 +112,12 @@
   }
 
   /* On 380px or less, reduce gap further */
-  @media (max-width: 380px) {
-    .kpi-cards,
-    .kpi-sectors {
-      gap: 8px !important;
-    }
+}
+
+@media (max-width: 380px) {
+  .kpi-cards,
+  .kpi-sectors {
+    gap: 8px !important;
   }
 
   /* Cards should not overflow horizontally */
@@ -314,10 +315,11 @@
   }
 
   /* 2-column grids become 1-column on very small screens (≤380px) */
-  @media (max-width: 380px) {
-    .grid.grid-cols-2 {
-      grid-template-columns: 1fr !important;
-    }
+}
+
+@media (max-width: 380px) {
+  .grid.grid-cols-2 {
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -354,14 +356,15 @@
   }
 
   /* Full-width modals on very small screens */
-  @media (max-width: 380px) {
-    [role="dialog"],
-    .modal,
-    .modal-content {
-      width: 100vw !important;
-      max-width: 100vw !important;
-      border-radius: 0 !important;
-    }
+}
+
+@media (max-width: 380px) {
+  [role="dialog"],
+  .modal,
+  .modal-content {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    border-radius: 0 !important;
   }
 }
 
