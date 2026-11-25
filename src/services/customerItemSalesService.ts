@@ -1844,6 +1844,56 @@ const CUSTOMER_ITEM_SALES_SELECT_COLUMNS = [
 ].join(',');
 
 /**
+ * مبيعات أصناف عميل واحد من السيرفر — لبروفايل العميل لما الجهاز ما عندوش الداتا الخام
+ * (أدمن، أو موبايل جديد). بيجيب صفوف العميل ده بس (فهرس customer_account)،
+ * ومتخزن في الذاكرة 10 دقايق عشان فتح البروفايل تاني ما يسحبش egress تاني.
+ */
+const singleCustomerSalesCache = new Map<string, { at: number; rows: CustomerItemSaleRecord[] }>();
+const SINGLE_CUSTOMER_TTL_MS = 10 * 60 * 1000;
+
+export async function fetchItemSalesForCustomer(
+  customerAccount?: string,
+  customerName?: string
+): Promise<CustomerItemSaleRecord[]> {
+  const account = String(customerAccount || '').trim();
+  const name = String(customerName || '').trim();
+  const cacheKey = `${account}\u0000${name}`;
+  if (!account && !name) return [];
+  const cached = singleCustomerSalesCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < SINGLE_CUSTOMER_TTL_MS) return cached.rows;
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return cached?.rows || [];
+
+  const fetchBy = async (column: 'customer_account' | 'invoicing_name', value: string) => {
+    const rows: any[] = [];
+    const pageSize = 1000;
+    for (let from = 0; from < 10000; from += pageSize) {
+      const { data, error } = await supabase
+        .from('customer_item_sales')
+        .select(CUSTOMER_ITEM_SALES_SELECT_COLUMNS)
+        .eq(column, value)
+        .order('month', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      const page = data || [];
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return rows;
+  };
+
+  try {
+    let raw = account ? await fetchBy('customer_account', account) : [];
+    if (raw.length === 0 && name) raw = await fetchBy('invoicing_name', name);
+    const rows = raw.map(mapSupabaseRowToCustomerItemSale);
+    singleCustomerSalesCache.set(cacheKey, { at: Date.now(), rows });
+    return rows;
+  } catch (error) {
+    console.warn('fetchItemSalesForCustomer failed:', error);
+    return cached?.rows || [];
+  }
+}
+
+/**
  * Fetch Customer Item Sales from Supabase table `customer_item_sales` with complete pagination (fetching all 10,000+ rows)
  */
 export async function fetchCustomerItemSalesFromSupabase(

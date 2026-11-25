@@ -506,9 +506,15 @@ function getSectorCacheFor(allUsers: User[], customers: object[]) {
   return cache;
 }
 
+// مصفوفات فاضية ثابتة للقيم الافتراضية: `= []` كانت بتعمل مصفوفة جديدة مع كل نداء،
+// والكاش متربط بهوية المصفوفة، فالنداء من غير customers (صفحة التارجت/المناديب)
+// ما كانش بيلاقي الكاش أبدًا وكان بيعيد مطابقة الأسماء العربية لكل سجل كل مرة.
+const EMPTY_SECTOR_USERS: User[] = [];
+const EMPTY_SECTOR_CUSTOMERS: object[] = [];
+
 export function inferTargetSector(
   record: TargetRecord,
-  allUsers: User[] = [],
+  allUsers: User[] = EMPTY_SECTOR_USERS,
   customers: Array<{
     sector?: 'home' | 'electrical' | 'both' | 'all';
     name?: string;
@@ -516,7 +522,7 @@ export function inferTargetSector(
     repName?: string;
     salesRepName?: string;
     branchName?: string;
-  }> = []
+  }> = EMPTY_SECTOR_CUSTOMERS as never[]
 ): 'home' | 'electrical' | undefined {
   // المسار السريع: لو السجل نفسه بيحدد القطاع مفيش داعي لأي بحث.
   if (record.sector === 'home' || record.sector === 'electrical') return record.sector;

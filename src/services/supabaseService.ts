@@ -3063,6 +3063,7 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
       discount_percentage: invoice.discountPercentage,
       discount_amount: invoice.discountAmount,
       estimated_grand_total: invoice.estimatedGrandTotal,
+      grand_total: invoice.estimatedGrandTotal,
       notes: invoice.notes,
       items: invoice.items,
       synced_to_accounting: invoice.syncedToAccounting,
@@ -3123,6 +3124,7 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
       total_cartons: invoice.totalCartons,
       total_pieces: invoice.totalPieces,
       estimated_grand_total: invoice.estimatedGrandTotal,
+      grand_total: invoice.estimatedGrandTotal,
       items: typeof invoice.items === 'string' ? invoice.items : JSON.stringify(invoice.items),
       created_at: invoice.date ? `${invoice.date} ${invoice.time || ''}`.trim() : new Date().toISOString(),
     };
@@ -3176,6 +3178,7 @@ export async function saveInvoicesToSupabase(
         discount_percentage: inv.discountPercentage,
         discount_amount: inv.discountAmount,
         estimated_grand_total: inv.estimatedGrandTotal,
+        grand_total: inv.estimatedGrandTotal,
         payment_method: inv.paymentMethod,
         notes: inv.notes || '',
         synced_to_accounting: inv.syncedToAccounting || false,
@@ -3371,19 +3374,22 @@ async function fetchInvoicesFromSupabaseImpl(
       return first;
     };
 
-    // Query 'orders' directly as it is the primary production table for invoices.
-    // Falls back to legacy 'invoices' only if orders query fails or is empty,
-    // cutting egress and API calls in half.
-    let rawInvoices: any[] | null = null;
-    const ordResult = await buildQuery('orders');
-    if (!ordResult?.error && ordResult?.data && ordResult.data.length > 0) {
-      rawInvoices = ordResult.data;
-    } else {
-      const invResult = await buildQuery('invoices');
-      if (!invResult?.error && invResult?.data && invResult.data.length > 0) {
-        rawInvoices = invResult.data;
+    // الكتابة بتروح لجدول invoices (لو مفتوح) أو orders (لو مقفول)، فلازم القراءة
+    // تجمع الجدولين. قبل كده كانت بتقرأ orders وبس، وكانت بتتجاهل invoices لو
+    // orders فيه أي صف، فالفواتير الجديدة ماكانتش بتظهر للمشرف ولا للإدارة.
+    const [ordResult, invResult] = await Promise.all([buildQuery('orders'), buildQuery('invoices')]);
+    const seenIds = new Set<string>();
+    const rawInvoices: any[] = [];
+    [invResult, ordResult].forEach((res: any) => {
+      if (!res?.error && Array.isArray(res?.data)) {
+        res.data.forEach((row: any) => {
+          const id = String(row?.id || '');
+          if (id && seenIds.has(id)) return;
+          if (id) seenIds.add(id);
+          rawInvoices.push(row);
+        });
       }
-    }
+    });
 
     const invoiceRows = (rawInvoices || []).filter((row: any) => {
       const id = String(row?.id || '');
@@ -3454,6 +3460,8 @@ export interface InvoiceContentStamp {
   stampColumn?: 'updated_at' | 'created_at';
   /** الجدول فاضي فعلًا (أو مفيش فواتير في نطاق المستخدم). */
   empty?: boolean;
+  /** أحدث created_at في الجدول التاني (invoices) — بيتقارن عشان أي فاتورة جديدة فيه تتحمّل. */
+  otherMax?: string | null;
 }
 
 export interface SalesSummaryKpis {
@@ -3598,12 +3606,24 @@ export async function fetchInvoiceContentStamp(
     }
     if (res.error) return null;
     const maxVal = res.data && res.data.length > 0 ? (res.data[0] as any)?.[stampColumn] ?? null : null;
+    // الجدول التاني: الفواتير الجديدة بتتكتب في invoices، فلازم بصمتها تدخل المقارنة.
+    let otherMax: string | null = null;
+    if (table === 'orders') {
+      try {
+        const other = await probe('invoices', 'created_at');
+        if (!other.error && other.data && other.data.length > 0) {
+          const v = (other.data[0] as any)?.created_at;
+          otherMax = v != null ? String(v) : null;
+        }
+      } catch {}
+    }
     return {
       count: null,
       maxCreatedAt: maxVal != null ? String(maxVal) : null,
       table,
       stampColumn,
-      empty: (res.data?.length ?? 0) === 0,
+      empty: (res.data?.length ?? 0) === 0 && !otherMax,
+      otherMax,
     };
   } catch {
     return null;

@@ -79,20 +79,18 @@ export async function createInvoicePDFDocument(
     return `
       <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 1 ? 'background-color: #f8fafc;' : 'background-color: #ffffff;'}">
         <td style="padding: 6px 8px; text-align: center; font-weight: bold; font-size: 11px; color: #64748b; width: 30px;">${idx + 1}</td>
-        <td style="padding: 6px 8px; font-weight: 800; font-size: 11px; color: #0f172a; white-space: nowrap; width: 85px;">
-          ${item.productCode}
+        <td style="padding: 6px 6px; font-weight: 800; font-size: 11px; color: #0f172a; white-space: nowrap; width: 78px;">
+          <div>${item.productCode}</div>
+          ${unifiedCode && unifiedCode.replace('#', '') !== String(item.productCode) ? `<div style="font-size: 9.5px; color: #3730a3; margin-top: 2px;">#${unifiedCode.replace('#', '')}</div>` : ''}
         </td>
-        <td style="padding: 6px 8px; font-weight: 700; font-size: 11px; color: #4338ca; white-space: nowrap; width: 80px;">
-          ${unifiedCode ? `<span style="background: #e0e7ff; color: #3730a3; padding: 2px 5px; border-radius: 4px;">#${unifiedCode.replace('#', '')}</span>` : '<span style="color: #94a3b8;">---</span>'}
-        </td>
-        <td style="padding: 6px 8px; font-weight: 800; font-size: 11.5px; color: #0f172a; line-height: 1.4;">
+        <td style="padding: 6px 8px; font-weight: 800; font-size: 11.5px; color: #0f172a; line-height: 1.4; min-width: 210px;">
           ${item.productName}
           ${item.fulfilledFrom === 'main_warehouse' ? '<span style="display: inline-block; background: #fef3c7; color: #92400e; font-size: 9.5px; font-weight: bold; padding: 1px 4px; border-radius: 4px; margin-right: 4px;">مخزن 6 أكتوبر</span>' : ''}
         </td>
-        <td style="padding: 6px 8px; text-align: center; font-size: 11px; color: #475569; width: 50px;">${cartonQty}</td>
-        <td style="padding: 6px 8px; text-align: center; font-weight: 700; font-size: 11px; color: #0f172a; width: 55px;">${cCount} ك</td>
-        <td style="padding: 6px 8px; text-align: center; font-weight: 700; font-size: 11px; color: #0f172a; width: 55px;">${pCount} ق</td>
-        <td style="padding: 6px 8px; text-align: center; font-weight: 800; font-size: 11px; color: #b45309; width: 65px; background: #fffbeb;">${totalUnits} ق</td>
+        <td style="padding: 6px 8px; text-align: center; font-size: 11px; color: #475569; width: 38px;">${cartonQty}</td>
+        <td style="padding: 6px 8px; text-align: center; font-weight: 700; font-size: 11px; color: #0f172a; width: 44px;">${cCount} ك</td>
+        <td style="padding: 6px 8px; text-align: center; font-weight: 700; font-size: 11px; color: #0f172a; width: 44px;">${pCount} ق</td>
+        <td style="padding: 6px 8px; text-align: center; font-weight: 800; font-size: 11px; color: #b45309; width: 52px; background: #fffbeb;">${totalUnits} ق</td>
         <td style="padding: 6px 8px; text-align: left; font-size: 11px; color: #334155; width: 75px;">${cartonPrice.toLocaleString()} ج.م</td>
         <td style="padding: 6px 8px; text-align: left; font-weight: 800; font-size: 11.5px; color: #0f172a; width: 85px;">${(item.netTotal || item.totalBeforeTax || 0).toLocaleString()} ج.م</td>
       </tr>
@@ -121,8 +119,8 @@ export async function createInvoicePDFDocument(
               <div style="font-size: 10px; font-weight: bold; color: #64748b;">${comp.nameEnglish}</div>
             </div>
           </div>
-          <div style="font-size: 10.5px; color: #475569; margin-top: 5px;">مقر الشركة:regionOctober</div>
-          <div style="font-size: 10.5px; color: #64748b; margin-top: 4px;">عن sistema البيع والتوزيع - أكتوبر فقط</div>
+          ${comp.headquarters ? `<div style="font-size: 10.5px; color: #475569; margin-top: 5px;">مقر الشركة: ${comp.headquarters}</div>` : ''}
+          ${comp.activity ? `<div style="font-size: 10.5px; color: #64748b; margin-top: 4px;">${comp.activity}</div>` : ''}
         </div>
 
         <div style="text-align: left;">
@@ -168,8 +166,7 @@ export async function createInvoicePDFDocument(
           <thead>
             <tr style="background: #0f172a; color: #ffffff; font-size: 10.5px;">
               <th style="padding: 6px 8px; text-align: center; border: 1px solid #0f172a;">م</th>
-              <th style="padding: 6px 8px; border: 1px solid #0f172a;">كود الصنف</th>
-              <th style="padding: 6px 8px; border: 1px solid #0f172a;">الكود الموحد</th>
+              <th style="padding: 6px 6px; border: 1px solid #0f172a;">الكود</th>
               <th style="padding: 6px 8px; border: 1px solid #0f172a;">اسم الصنف والبيان</th>
               <th style="padding: 6px 8px; text-align: center; border: 1px solid #0f172a;">شدة</th>
               <th style="padding: 6px 8px; text-align: center; border: 1px solid #0f172a;">كرتون</th>
