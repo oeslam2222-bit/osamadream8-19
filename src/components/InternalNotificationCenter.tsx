@@ -23,7 +23,8 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import type { LucideIcon } from 'lucide-react';
@@ -97,6 +98,23 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
   const userAllReadTimestampKey = `${GLOBAL_ALL_READ_KEY}_${userSuffix}`;
 
   const [isOpen, setIsOpen] = useState(false);
+  const bellRef = useRef<HTMLButtonElement | null>(null);
+  // مكان اللوحة على الشاشات العريضة (fixed + portal عشان ما تتقصّش داخل الشريط العلوي)
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
+  const PANEL_WIDTH = 420;
+  const toggleOpen = () => {
+    setIsOpen((v) => {
+      const next = !v;
+      if (next && typeof window !== 'undefined' && bellRef.current && window.innerWidth >= 640) {
+        const r = bellRef.current.getBoundingClientRect();
+        const left = Math.max(8, Math.min(r.left, window.innerWidth - PANEL_WIDTH - 8));
+        setPanelPos({ top: r.bottom + 8, left });
+      } else if (next) {
+        setPanelPos(null);
+      }
+      return next;
+    });
+  };
   const [filterMode, setFilterMode] = useState<'unread' | 'all'>('unread');
   
   // خريطة الإشعارات المقروءة
@@ -475,7 +493,31 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         });
       }
 
-      // ===== فواتير dépasseت حد الائتمان — تنبيه حرج للإدارة =====
+      // ===== فواتير بانتظار اعتماد الإدارة — لمدير الفرع والإدارة فقط =====
+      if (currentUser?.role !== 'supervisor') {
+        const pendingAdminApproval = visibleInvoices.filter(
+          (inv) => inv.status === 'في انتظار اعتماد الإدارة'
+        );
+        if (pendingAdminApproval.length > 0) {
+          const pendingValue = pendingAdminApproval.reduce(
+            (sum, inv) => sum + (inv.estimatedGrandTotal || 0),
+          0);
+          list.push({
+            id: `invoices-pending-admin-${today}`,
+            kind: 'system',
+            priority: 'high',
+            title: `${pendingAdminApproval.length} فاتورة بانتظار اعتماد الإدارة`,
+            detail: `إجمالي القيمة ${formatCurrency(pendingValue)} — اعتماد نهائي قبل التجهيز`,
+            icon: ShieldAlert,
+            accent: 'text-[var(--app-risk-text)]',
+            iconBg: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]',
+            actionTab: 'invoices',
+            actionLabel: 'اعتماد الفواتير',
+          });
+        }
+      }
+
+      // ===== فواتير تجاوزت حد الائتمان — تنبيه حرج للإدارة =====
       const overCreditInvoices = visibleInvoices.filter(
         (inv) => inv.creditLimitExceeded === true
       );
@@ -487,7 +529,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           id: `invoices-over-credit-${today}`,
           kind: 'system',
           priority: 'high',
-          title: `${overCreditInvoices.length} فاتورة dépasseت حد الائتمان للعميل`,
+          title: `${overCreditInvoices.length} فاتورة تجاوزت حد الائتمان للعميل`,
           detail: `إجمالي الفواتير ${formatCurrency(overValue)} — يتطلب مراجعة موقف العميل المالي قبل الاعتماد`,
           icon: Wallet,
           accent: 'text-[var(--app-risk-text)]',
@@ -657,7 +699,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       {/* زر الجرس — مثل فيسبوك: يظهر الرقم فقط إذا كانت هناك إشعارات غير مقروءة، ويختفي تماماً عند القراءة */}
       <button
         type="button"
-        onClick={() => setIsOpen((v) => !v)}
+        ref={bellRef}
+        onClick={toggleOpen}
         aria-label="الإشعارات"
         aria-expanded={isOpen}
         className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer transition active:scale-95 shadow-xs"
@@ -680,21 +723,23 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       </button>
 
       {/* اللوحة */}
-      {isOpen && (
+      {isOpen && createPortal(
         <>
           {/* خلفية شفافة للإغلاق عند النقر بالخارج */}
           <div
-            className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[1000] bg-slate-900/30 backdrop-blur-[2px]"
             onClick={() => setIsOpen(false)}
             aria-hidden
           />
           <div
             role="dialog"
             aria-label="مركز الإشعارات"
-            className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:top-full sm:mt-2 rtl:sm:left-0 ltr:sm:right-0 sm:w-[420px] max-w-[calc(100vw-16px)] max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-navy-dark2 shadow-2xl flex flex-col z-50 animate-in fade-in zoom-in-95"
+            style={panelPos ? { top: panelPos.top, left: panelPos.left, width: PANEL_WIDTH } : undefined}
+            className="fixed inset-x-2 top-16 sm:inset-x-auto max-w-[calc(100vw-16px)] max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-navy-dark2 shadow-2xl flex flex-col z-[1001] animate-in fade-in zoom-in-95"
+            dir="rtl"
           >
             {/* Facebook-style arrow indicator pointing to bell */}
-            <div className="hidden sm:block absolute -top-1.5 rtl:left-3.5 ltr:right-3.5 w-3 h-3 rotate-45 bg-slate-50 dark:bg-slate-900 border-t border-s border-slate-200 dark:border-slate-800 z-10" />
+            <div className="hidden absolute -top-1.5 rtl:left-3.5 ltr:right-3.5 w-3 h-3 rotate-45 bg-slate-50 dark:bg-slate-900 border-t border-s border-slate-200 dark:border-slate-800 z-10" />
             {/* الترويسة الرئيسية */}
             <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -904,7 +949,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
               </span>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

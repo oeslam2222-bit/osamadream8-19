@@ -1,3 +1,4 @@
+import '../styles/order-builder.css';
 import {
   AlertCircle,
   AlertTriangle,
@@ -574,7 +575,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         customerTaxNumber: effectiveCustomer.taxNumber,
         repName: activeRepUser?.name || currentUser?.name || 'مندوب المبيعات',
         repId: activeRepUser?.id || currentUser?.id,
-        branchName: effectiveCustomer.branchName || activeBranch,
+        branchName: activeBranch || effectiveCustomer.branchName,
         paymentMethod: effectivePaymentMethod,
         repComment: invoiceNotes || undefined,
         notes: `فاتورة مبيعات كاشير دريم - تسجيل بواسطة ${currentUser?.name || 'المندوب'}`,
@@ -856,7 +857,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       className="app-link flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>{isCatalogPickerOpen ? 'إخفاء كتالوج الإضافة' : 'إضافة أصناف أخرى ➕'}</span>
+                      <span>{isCatalogPickerOpen ? 'إخفاء كتالوج الإضافة' : 'إضافة أصناف أخرى'}</span>
                     </button>
                   </div>
 
@@ -1137,6 +1138,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   onClear={() => setActiveCustomer(null)}
                   placeholder="ابحث بالاسم، كود العميل، أو الهاتف..."
                   label="بحث واختيار العميل"
+                  showRepFilter
+                  showBranchFilter
                 />
               </div>
 

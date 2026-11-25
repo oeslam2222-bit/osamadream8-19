@@ -1,5 +1,6 @@
 import React from 'react';
 import { Package } from 'lucide-react';
+import '../styles/invoice-items.css';
 import { Invoice, InvoiceItem } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { cleanProductCode } from '../services/excelService';
@@ -37,16 +38,17 @@ export const InvoiceItemsTable: React.FC<InvoiceItemsTableProps> = ({ invoice, b
   const itemsDiscount = items.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0);
 
   return (
-    <div className={bare ? 'p-3 sm:p-4 space-y-2' : 'tg-card p-3 sm:p-4 space-y-2'} dir="rtl">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h4 className="text-xs sm:text-sm font-black text-[var(--tg-ink)] flex items-center gap-1.5">
-          <Package className="w-3.5 h-3.5 text-[var(--tg-muted)]" />
+    <div className={`ord-items ${bare ? 'p-3 sm:p-4 space-y-3' : 'tg-card p-3 sm:p-4 space-y-3'}`} dir="rtl">
+      <div className="ord-items__head">
+        <h4 className="ord-items__title">
+          <span className="ord-items__ico" aria-hidden="true"><Package className="w-4 h-4" /></span>
           <span>الأصناف والمنتجات</span>
         </h4>
-        <span className="text-[10.5px] font-bold text-[var(--tg-muted)]">
-          {items.length} صنف • القيمة {formatCurrency(itemsTotal)}
-          {itemsDiscount > 0 ? ` • الخصم ${formatCurrency(itemsDiscount)}` : ''}
-        </span>
+        <div className="ord-items__stats">
+          <span className="ord-stat"><em>الأصناف</em><b>{items.length}</b></span>
+          <span className="ord-stat"><em>القيمة</em><b>{formatCurrency(itemsTotal)}</b></span>
+          {itemsDiscount > 0 && <span className="ord-stat ord-stat--disc"><em>الخصم</em><b>{formatCurrency(itemsDiscount)}</b></span>}
+        </div>
       </div>
 
       {items.length === 0 ? (
@@ -54,8 +56,8 @@ export const InvoiceItemsTable: React.FC<InvoiceItemsTableProps> = ({ invoice, b
           لا توجد أصناف مسجلة في هذه الفاتورة
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-[var(--tg-line)] tg-card">
-          <table className="tg-table w-full text-right text-xs" dir="rtl">
+        <div className="ord-items__wrap">
+          <table className="tg-table ord-items__table w-full text-right text-xs" dir="rtl">
             <thead>
               <tr>
                 <th className="p-2.5 text-center whitespace-nowrap">الكود</th>
@@ -112,12 +114,12 @@ export const InvoiceItemsTable: React.FC<InvoiceItemsTableProps> = ({ invoice, b
 
       {/* ملخص سريع للفاتورة من الأصناف نفسها */}
       {items.length > 0 && (
-        <div className="flex items-center justify-between gap-2 flex-wrap text-[11px] font-bold text-[var(--tg-muted)]">
-          <span>
-            إجمالي الفاتورة: <b className="text-[var(--tg-ink)] tabular-nums">{formatCurrency(grandTotal)}</b>
+        <div className="ord-items__sum">
+          <span className="ord-sum">
+            <em>إجمالي الفاتورة</em> <b className="tabular-nums">{formatCurrency(grandTotal)}</b>
           </span>
-          <span>
-            مجموع الأصناف: <b className="text-[var(--tg-ink)] tabular-nums">{formatCurrency(itemsTotal)}</b>
+          <span className="ord-sum">
+            <em>مجموع الأصناف</em> <b className="tabular-nums">{formatCurrency(itemsTotal)}</b>
           </span>
         </div>
       )}

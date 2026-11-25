@@ -10,6 +10,10 @@ import {
   Clock3,
   CreditCard,
   Eye,
+  Check,
+  User,
+  Store,
+  CalendarDays,
   FileSpreadsheet,
   FileText,
   Package,
@@ -25,6 +29,7 @@ import { buildShortageReport, downloadShortageReport } from '../services/shortag
 import { fetchInvoiceRowById } from '../services/supabaseService';
 import { InvoiceItemsTable } from './InvoiceItemsTable';
 import type { Invoice, OrderStatus } from '../types';
+import '../styles/orders-card.css';
 
 type StageKey = 'supervisor' | 'admin' | 'prep' | 'delivery' | 'closed' | 'cancelled';
 
@@ -274,15 +279,7 @@ export const OrdersPipelineView: React.FC<{
 
   const stageBadge = (inv: Invoice) => {
     const st = getStage(inv);
-    const map: Record<StageKey, string> = {
-      supervisor: 'bg-amber-50 text-amber-800 border-amber-200',
-      admin: 'bg-orange-50 text-orange-800 border-orange-200',
-      prep: 'bg-blue-50 text-blue-800 border-blue-200',
-      delivery: 'bg-indigo-50 text-indigo-800 border-indigo-200',
-      closed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      cancelled: 'bg-red-50 text-red-700 border-red-200',
-    };
-    return <span className={`text-[10px] font-extrabold px-2 py-1 rounded-lg border ${map[st]}`}>{STAGES.find(s=>s.key===st)?.title}</span>;
+    return <span className="ord-badge">{STAGES.find(x=>x.key===st)?.title}</span>;
   };
 
   const alerts = (inv: Invoice) => {
@@ -302,7 +299,7 @@ export const OrdersPipelineView: React.FC<{
   const actionArea = (inv: Invoice) => {
     const st = getStage(inv);
     const b = (label: string, onClick: () => void, cls: string, icon?: React.ReactNode, disabled?: boolean) => (
-      <button disabled={disabled || busy===inv.id} onClick={onClick} className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold border transition disabled:opacity-50 ${cls}`}>{icon}{label}</button>
+      <button disabled={disabled || busy===inv.id} onClick={onClick} className={`ord-btn ${/text-white/.test(cls) ? 'ord-btn--primary' : /text-rose/.test(cls) ? 'ord-btn--danger' : 'ord-btn--ghost'}`}>{icon}{label}</button>
     );
     const cancelBtn = () => (canCancelInv(inv) && canActApprove(role))
       ? b('إلغاء الطلب', () => { setCancelFor(inv.id); setCancelReason('إلغاء الطلب'); }, 'bg-[var(--app-card)] text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-400/30 hover:bg-rose-50 dark:hover:bg-rose-500/10', <Ban size={14}/>)
@@ -365,14 +362,20 @@ export const OrdersPipelineView: React.FC<{
     const order: StageKey[] = ['supervisor','admin','prep','delivery','closed'];
     const idx = st === 'cancelled' ? -1 : order.indexOf(st);
     return (
-      <div className="flex items-center gap-1.5 text-[10px] font-extrabold overflow-x-auto scrollbar-none -mx-1 px-1">
-        {order.map((k, i) => {
-          const active = i === idx;
-          const done = idx > i || st === 'closed';
-          const cls = active ? 'bg-[var(--role)] text-white border-[var(--role)]' : done ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-400/30' : 'bg-[var(--app-card-secondary)] text-[var(--tg-muted)] border-[var(--tg-line)]';
-          return <React.Fragment key={k}><span className={`shrink-0 whitespace-nowrap px-2 py-1 rounded-lg border ${cls}`}>{STAGES.find(s=>s.key===k)?.title}</span>{i<order.length-1 && <span className="shrink-0 text-[var(--tg-muted)]">←</span>}</React.Fragment>;
-        })}
-        {st === 'cancelled' && <span className="shrink-0 whitespace-nowrap px-2 py-1 rounded-lg border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-400/30">ملغى/مرفوض</span>}
+      <div>
+        <ol className="ord-trk" aria-label="مراحل الطلب">
+          {order.map((k, i) => {
+            const active = i === idx;
+            const done = idx > i || st === 'closed';
+            return (
+              <li key={k} data-k={k} className={`ord-n${active ? ' is-now' : ''}${done ? ' is-done' : ''}`} aria-current={active ? 'step' : undefined}>
+                <span className="ord-dot">{done ? <Check size={12} strokeWidth={3} aria-hidden="true" /> : i + 1}</span>
+                <span className="ord-nl">{STAGES.find(x=>x.key===k)?.title}</span>
+              </li>
+            );
+          })}
+        </ol>
+        {st === 'cancelled' && <span className="ord-cancelled">ملغى/مرفوض</span>}
       </div>
     );
   };
@@ -514,37 +517,43 @@ export const OrdersPipelineView: React.FC<{
         </div>
       </div>
 
-      {/* list */}
-      <div className="space-y-3">
+      {/* list — كارتين جنب بعض على الشاشات العريضة؛ الكارت المفتوح بياخد العرض كله */}
+      <div className="ord-list">
         {visibleList.map(inv => {
           const st = getStage(inv);
           const isOpen = expanded === inv.id;
           const val = Number(inv.estimatedGrandTotal || inv.totalAmount || 0);
           return (
-            <article key={inv.id} className="tg-card overflow-hidden">
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                    <span className="font-mono text-[11px] font-bold text-[var(--tg-muted)]" dir="ltr">#{inv.invoiceNumber}</span>
-                    {stageBadge(inv)}
-                    {alerts(inv)}
+            <article key={inv.id} data-stage={st} className={`tg-card ord-card overflow-hidden${isOpen ? ' is-open' : ''}`}>
+              <div className="ord-hd">
+                <div className="ord-hd__r1">
+                  <span className="ord-av" aria-hidden="true">{(inv.customerName || 'ع').trim().charAt(0)}</span>
+                  <div className="ord-hd__main">
+                    <div className="ord-hd__name">{inv.customerName || 'عميل'}</div>
+                    <div className="ord-hd__no" dir="ltr">#{inv.invoiceNumber}</div>
                   </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="min-w-0 font-black text-[var(--tg-ink)] text-[15px] leading-tight truncate">{inv.customerName || 'عميل'}</div>
-                    <div className="shrink-0 font-black text-[var(--tg-ink)] text-base leading-none tabular-nums">{formatCurrency(val)}</div>
-                  </div>
-                  <div className="text-[11px] text-[var(--tg-muted)] font-bold mt-1 truncate">
-                    {inv.repName || '—'} · {inv.branchName || '—'} · {inv.date ? formatArabicDate(inv.date) : ''} · {(
-                      Array.isArray((inv as any).items) ? (inv as any).items.length
-                      : Array.isArray(hydratedItemsById[inv.id]) ? hydratedItemsById[inv.id].length
-                      : '—'
-                    )} صنف
-                  </div>
+                  {stageBadge(inv)}
+                  <button onClick={()=>setExpanded(isOpen?null:inv.id)} aria-label={isOpen ? 'طي التفاصيل' : 'عرض التفاصيل'} className="ord-hd__toggle">{isOpen?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</button>
                 </div>
-                <button onClick={()=>setExpanded(isOpen?null:inv.id)} aria-label={isOpen ? 'طي التفاصيل' : 'عرض التفاصيل'} className="shrink-0 p-2 rounded-xl border border-[var(--tg-line)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]">{isOpen?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</button>
+                <div className="ord-chips">
+                  <span><User size={13} aria-hidden="true" />{inv.repName || '—'}</span>
+                  <span><Store size={13} aria-hidden="true" />{inv.branchName || '—'}</span>
+                  <span><CalendarDays size={13} aria-hidden="true" />{inv.date ? formatArabicDate(inv.date) : '—'}</span>
+                  {alerts(inv)}
+                </div>
               </div>
 
-              <div>{flowSteps(inv)}</div>
+              <div className="ord-bd">
+              <div className="ord-am">
+                <span>إجمالي الطلب · {(
+                  Array.isArray((inv as any).items) ? (inv as any).items.length
+                  : Array.isArray(hydratedItemsById[inv.id]) ? hydratedItemsById[inv.id].length
+                  : '—'
+                )} صنف</span>
+                <b>{formatCurrency(val)}</b>
+              </div>
+
+              {flowSteps(inv)}
               <div>{actionArea(inv)}</div>
 
               {/* جدول الأصناف والمنتجات — يُحمّل عند التوسيع لتقليل تحميل القوائم */}
@@ -558,7 +567,7 @@ export const OrdersPipelineView: React.FC<{
                 <button
                   type="button"
                   onClick={() => setExpanded(inv.id)}
-                  className="w-full text-xs font-black text-[var(--tg-primary)] bg-[var(--tg-primary-soft)] border border-[var(--tg-primary-line)] rounded-xl px-3 py-2 hover:opacity-90"
+                  className="ord-items-btn"
                 >
                   عرض بنود الفاتورة
                 </button>
@@ -586,31 +595,32 @@ export const OrdersPipelineView: React.FC<{
                 )}
 
                 {isOpen && (
-                  <div className="border-t border-[var(--tg-line)] pt-3 grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs font-bold text-[var(--tg-muted)]">
-                    <div className="bg-[var(--app-card-secondary)] rounded-xl p-3 space-y-1">
-                      <div className="font-extrabold text-[var(--tg-ink)] mb-1">تفاصيل</div>
+                  <div className="ord-info-grid">
+                    <div className="ord-info ord-info--details">
+                      <div className="ord-info__title">تفاصيل</div>
                       <div>الحالة: <b className="text-[var(--tg-ink)]">{inv.status}</b></div>
                       <div>الدفع: <b className="text-[var(--tg-ink)]">{inv.paymentMethod || '—'}</b></div>
                       <div>ملاحظات: <b className="text-[var(--tg-ink)]">{inv.notes || '—'}</b></div>
                       {inv.cancellationReason && <div className="text-rose-700 dark:text-rose-300">سبب الإلغاء: <b>{inv.cancellationReason}</b></div>}
                     </div>
-                    <div className="bg-[var(--app-card-secondary)] rounded-xl p-3 space-y-1">
-                      <div className="font-extrabold text-[var(--tg-ink)] mb-1">الائتمان/النواقص</div>
+                    <div className="ord-info ord-info--credit">
+                      <div className="ord-info__title">الائتمان/النواقص</div>
                       <div>تجاوز ائتماني: <b className={inv.creditLimitExceeded?'text-rose-700 dark:text-rose-300':'text-[var(--tg-ink)]'}>{inv.creditLimitExceeded ? 'نعم' : 'لا'}</b></div>
                       <div>استثناء ائتماني: <b className="text-[var(--tg-ink)]">{inv.creditOverrideStatus || (inv.creditOverrideRequested ? 'مطلوب' : '—')}</b></div>
                       <div>نواقص/توريد أكتوبر: <b className={inv.hasOctoberShortages?'text-amber-700 dark:text-amber-300':'text-[var(--tg-ink)]'}>{inv.hasOctoberShortages ? (inv.octoberSupplyDispatched ? 'تم التوريد' : 'مطلوب/قيد التوريد') : 'لا يوجد'}</b></div>
                     </div>
-                    <div className="bg-[var(--app-card-secondary)] rounded-xl p-3 space-y-1">
-                      <div className="font-extrabold text-[var(--tg-ink)] mb-1">إجراءات</div>
+                    <div className="ord-info ord-info--actions">
+                      <div className="ord-info__title">إجراءات</div>
                       <div className="flex flex-wrap gap-2">
-                        {onViewInvoice && <button onClick={()=>{ void openView(inv); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]"><Eye size={13}/>عرض التفاصيل</button>}
-                        {onEditInvoice && getStage(inv)==='supervisor' && <button onClick={()=>{ void openEdit(inv); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]"><ClipboardCheck size={13}/>تعديل</button>}
+                        {onViewInvoice && <button onClick={()=>{ void openView(inv); }} className="ord-btn ord-btn--ghost"><Eye size={13}/>عرض التفاصيل</button>}
+                        {onEditInvoice && getStage(inv)==='supervisor' && <button onClick={()=>{ void openEdit(inv); }} className="ord-btn ord-btn--ghost"><ClipboardCheck size={13}/>تعديل</button>}
                         {/* تصدير PDF/إكسل مش هنا: موجود في شاشة معاينة الفاتورة اللي بتفتح من «عرض التفاصيل» — أمر واحد في مكان واحد. */}
                       </div>
                       <div className="text-[11px] text-[var(--tg-muted)] mt-1">الاعتماد والتجهيز والتسليم والإغلاق متاحة حسب الصلاحية والحالة.</div>
                     </div>
                   </div>
                 )}
+              </div>
             </article>
           );
         })}

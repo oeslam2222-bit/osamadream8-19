@@ -265,6 +265,8 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
             <span>نسخ الجدول</span>
           </button>
           <div className="flex-1" />
+          {/* زر "تحليلات العميل" مخفي بقرار الإدارة */}
+          {false && (
           <button
             onClick={() => setIsAnalyticsOpen(true)}
             className="app-btn app-btn-ghost flex items-center gap-1.5 text-xs sm:text-sm px-3 py-2 cursor-pointer"
@@ -272,6 +274,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
             <BarChart3 className="w-4 h-4" />
             <span>تحليلات العميل</span>
           </button>
+          )}
           <button
             onClick={handleDownloadERP}
             disabled={isDownloadingExcel}

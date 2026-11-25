@@ -1,4 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { normalizeArabicText } from '../services/arabicMatchingService';
 import {
   MapPin,
   Clock,
@@ -48,6 +49,7 @@ import {
 import type { Customer, CustomerVisit } from '../types';
 import { EmptyState } from './ui/EmptyState';
 import { CustomerSearchSelect } from './CustomerSearchSelect';
+import '../styles/visits-gps.css';
 import { DebouncedSearchInput } from './DebouncedSearchInput';
 
 const resolveStoreAvatar = (customer?: Partial<Customer> | null): string => {
@@ -415,16 +417,6 @@ export const VisitsDashboard: React.FC = () => {
     if (form.completionStatus === 'postponed' && !form.postponementReason) errors.push('يرجى اختيار سبب التأجيل');
     if (form.completionStatus === 'failed' && !form.failureReason) errors.push('يرجى اختيار سبب عدم الإتمام');
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-    if (!isOffline && selectedCustomerObj && !repGps && !proofPhotoUrl && currentUser?.role === 'sales_rep') {
-      errors.push('يرجى تفعيل GPS لالتقاط موقعك الحي أو التقاط صورة حية لواجهة المحل بالكاميرا');
-    }
-    if (!isOffline && liveGeoCheck.requiresLivePhoto && !proofPhotoUrl) {
-      errors.push(
-        liveGeoCheck.status === 'suspected_spoof'
-          ? 'تم رصد اشتباه في إشارة الـ GPS — يرجى التقاط صورة حية لواجهة المحل بالكاميرا للمتابعة'
-          : `أنت خارج نطاق المتجر (${formatDistance(liveGeoCheck.distanceMeters ?? 0)}) — يرجى التقاط صورة حية للمحل بالكاميرا للتوثيق`
-      );
-    }
     setFormErrors(errors);
     return errors.length === 0;
   };
@@ -449,8 +441,6 @@ export const VisitsDashboard: React.FC = () => {
       : undefined;
 
     const isOfflineDeferredPhoto =
-      typeof navigator !== 'undefined' &&
-      !navigator.onLine &&
       !proofPhotoUrl &&
       (liveGeoCheck.requiresLivePhoto || (!repGps && currentUser?.role === 'sales_rep'));
 
@@ -460,7 +450,7 @@ export const VisitsDashboard: React.FC = () => {
       accuracyMeters: liveGeoCheck.accuracyMeters,
       speedKmh: liveGeoCheck.speedKmh,
       flags: isOfflineDeferredPhoto
-        ? Array.from(new Set([...liveGeoCheck.flags, 'offline_photo_deferred']))
+        ? Array.from(new Set([...liveGeoCheck.flags, 'no_photo_review']))
         : liveGeoCheck.flags,
       proofPhotoUrl: proofPhotoUrl || undefined,
       verifiedAt: liveGeoCheck.verifiedAt,
@@ -487,7 +477,8 @@ export const VisitsDashboard: React.FC = () => {
       customerName: c?.name || form.customerName || '',
       customerCode: c?.code || form.customerCode || '',
       date: form.date,
-      time: form.time,
+      // وقت الزيارة بيتسجل لحظة ضغط «إرسال» (بدل إدخاله يدويًا كمرجع)
+      time: new Date().toTimeString().slice(0, 5),
       repId: r?.id || currentUser?.id || '',
       repName: r?.name || currentUser?.name || '',
       branchName: r?.branchName || c?.branchName || '',
@@ -507,7 +498,7 @@ export const VisitsDashboard: React.FC = () => {
       geoVerification: finalGeoVerification,
       reviewStatus: (liveGeoCheck.requiresSupervisorReview || isOfflineDeferredPhoto) ? 'pending' : 'approved',
       reviewNote: isOfflineDeferredPhoto
-        ? 'تم تسجيل الزيارة في وضع الأوفلاين — مؤجل إرفاق صورة التحقق لحين المزامنة ومراجعة المشرف'
+        ? 'زيارة غير موثّقة بالموقع (بدون GPS كافٍ) — بانتظار مراجعة المشرف'
         : undefined,
       productPhotos: productPhotos.length ? productPhotos : undefined,
       completionStatus: form.completionStatus,
@@ -681,10 +672,47 @@ export const VisitsDashboard: React.FC = () => {
     setVisibleVisitsCount(VISITS_CHUNK);
   }, [search, timeFilter, typeFilter, statusFilter, geoFilter, repFilter, activeSector, visits.length]);
 
+  // المناديب: من الزيارات + من عملاء النطاق (عشان مندوب ما زارش لسه يظهر في الفلتر)
   const repOptions = useMemo(() => {
-    const reps = [...new Set(visits.map((v) => v.repName).filter(Boolean))];
-    return reps;
-  }, [visits]);
+    const reps = new Set<string>();
+    visits.forEach((v) => { if (v.repName) reps.add(v.repName); });
+    myCustomers.forEach((c) => {
+      const r = c.salesRepName || c.repName;
+      if (r) reps.add(r);
+    });
+    return Array.from(reps).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [visits, myCustomers]);
+
+  // عملاء لم تتم زيارتهم هذا الشهر — بيتأثر بفلتر المندوب والبحث أعلى الصفحة
+  const [showUnvisited, setShowUnvisited] = useState(false);
+  const [unvisitedLimit, setUnvisitedLimit] = useState(30);
+  const unvisitedCustomers = useMemo(() => {
+    if (!showUnvisited) return [] as Customer[];
+    const monthPrefix = new Date().toISOString().slice(0, 7);
+    const visitedIds = new Set<string>();
+    const visitedCodes = new Set<string>();
+    visits.forEach((v) => {
+      if (!String(v.date || '').startsWith(monthPrefix)) return;
+      if (v.customerId) visitedIds.add(v.customerId);
+      if (v.customerCode) visitedCodes.add(v.customerCode);
+    });
+    const repKey = repFilter === 'all' ? '' : normalizeArabicText(repFilter);
+    const q = normalizeArabicText(String(deferredSearch || ''));
+    return myCustomers
+      .filter((c) => {
+        if (visitedIds.has(c.id) || (c.code && visitedCodes.has(c.code))) return false;
+        if (repKey) {
+          const r = normalizeArabicText(c.salesRepName || c.repName || '');
+          if (r !== repKey) return false;
+        }
+        if (q) {
+          const hay = normalizeArabicText(`${c.name || ''} ${c.storeName || ''} ${c.code || ''} ${c.branchName || ''}`);
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (Number(b.balance) || 0) - (Number(a.balance) || 0));
+  }, [showUnvisited, visits, myCustomers, repFilter, deferredSearch]);
   const branchOptions = useMemo(() => {
     const branches = [...new Set(visits.map((v) => v.branchName).filter(Boolean) as string[])];
     return branches.sort((a, b) => a.localeCompare(b, 'ar'));
@@ -710,7 +738,7 @@ export const VisitsDashboard: React.FC = () => {
   };
 
   return (
-    <div className="tg-dash space-y-4" dir="rtl">
+    <div className="tg-dash cr-page space-y-4" dir="rtl">
       {/* Flash message (توحيد مع tg-toast) */}
       {flash && (
         <div className="tg-toast">
@@ -774,50 +802,47 @@ export const VisitsDashboard: React.FC = () => {
       </section>
 
       {/* بطاقات المؤشرات — التصميم الجديد (كروت ملونة، أرقام كبيرة) */}
-      <section className="tg-grid-4">
-        <button type="button" className="tg-kpi-big tg-kpi-big--visits group cursor-pointer">
-          <div className="tg-kpi-big__top">
-            <span className="tg-kpi-big__icon tg-card--visits"><Calendar size={20} /></span>
+      <div className="grid gap-4 rounded-2xl p-4 md:p-6 grid-cols-2 keep-grid sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
+        <div className="tg-kpi tg-kpi--blue">
+          <div className="tg-kpi__top">
+            <span className="tg-kpi__icon"><Calendar size={20} /></span>
           </div>
-          <span className="tg-kpi-big__value">{stats.total.toLocaleString()}</span>
-          <span className="tg-kpi-big__label">إجمالي الزيارات</span>
-          <span className="tg-kpi-big__hint">زيارة مسجلة بالمنظومة</span>
-        </button>
-
-        <button type="button" className="tg-kpi-big tg-kpi-big--sales group cursor-pointer">
-          <div className="tg-kpi-big__top">
-            <span className="tg-kpi-big__icon tg-card--sales"><CheckCircle2 size={20} /></span>
+          <span className="tg-kpi__value tabular-nums">{stats.total.toLocaleString('en-US')}</span>
+          <span className="tg-kpi__label">إجمالي الزيارات</span>
+          <span className="tg-kpi__hint">زيارة مسجلة بالمنظومة</span>
+        </div>
+        <div className="tg-kpi tg-kpi--emerald">
+          <div className="tg-kpi__top">
+            <span className="tg-kpi__icon"><CheckCircle2 size={20} /></span>
           </div>
-          <span className="tg-kpi-big__value">{stats.completed.toLocaleString()}</span>
-          <span className="tg-kpi-big__label">الزيارات المنفذة</span>
-          <span className="tg-kpi-big__hint">زيارات ناجحة ومكتملة</span>
-        </button>
-
-        <button type="button" className="tg-kpi-big tg-kpi-big--customers group cursor-pointer">
-          <div className="tg-kpi-big__top">
-            <span className="tg-kpi-big__icon tg-card--customers"><MapPin size={20} /></span>
+          <span className="tg-kpi__value tabular-nums">{stats.completed.toLocaleString('en-US')}</span>
+          <span className="tg-kpi__label">الزيارات المنفذة</span>
+          <span className="tg-kpi__hint">زيارات ناجحة ومكتملة</span>
+        </div>
+        <div className="tg-kpi tg-kpi--amber">
+          <div className="tg-kpi__top">
+            <span className="tg-kpi__icon"><MapPin size={20} /></span>
           </div>
-          <span className="tg-kpi-big__value">{stats.gpsVerified.toLocaleString()}</span>
-          <span className="tg-kpi-big__label">زيارات موثقة (GPS)</span>
-          <span className="tg-kpi-big__hint">نسبة التوثيق: {stats.total > 0 ? Math.round((stats.gpsVerified / stats.total) * 100) : 0}%</span>
-        </button>
-
-        <button type="button" className="tg-kpi-big tg-kpi-big--invoices group cursor-pointer">
-          <div className="tg-kpi-big__top">
-            <span className="tg-kpi-big__icon tg-card--invoices"><Wallet size={20} /></span>
+          <span className="tg-kpi__value tabular-nums">{stats.gpsVerified.toLocaleString('en-US')}</span>
+          <span className="tg-kpi__label">زيارات موثقة (GPS)</span>
+          <span className="tg-kpi__hint">نسبة التوثيق: {stats.total > 0 ? Math.round((stats.gpsVerified / stats.total) * 100) : 0}%</span>
+        </div>
+        <div className="tg-kpi tg-kpi--red">
+          <div className="tg-kpi__top">
+            <span className="tg-kpi__icon"><Wallet size={20} /></span>
           </div>
-          <span className="tg-kpi-big__value">{formatCurrency(stats.totalCollected)}</span>
-          <span className="tg-kpi-big__label">التحصيلات</span>
-          <span className="tg-kpi-big__hint">{stats.collectionCount} عملية تحصيل مسجلة</span>
-        </button>
-      </section>
+          <span className="tg-kpi__value tabular-nums" style={{ fontSize: 20 }}>{formatCurrency(stats.totalCollected)}</span>
+          <span className="tg-kpi__label">التحصيلات</span>
+          <span className="tg-kpi__hint">{stats.collectionCount} عملية تحصيل مسجلة</span>
+        </div>
+      </div>
 
       {/* Filter and Search Bar */}
       <section className="tg-card p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+        <div className="vis-toolbar flex flex-col md:flex-row md:flex-wrap items-stretch md:items-center gap-3">
           {/* Main search input */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <div className="relative min-w-0 flex-1 md:basis-[280px]">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-[1]" />
             <DebouncedSearchInput
               type="text"
               value={search}
@@ -838,7 +863,7 @@ export const VisitsDashboard: React.FC = () => {
           </div>
 
           {/* Time range selector */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl shrink-0 overflow-x-auto">
+          <div className="vis-seg flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl shrink-0 max-w-full overflow-x-auto">
             <button
               type="button"
               onClick={() => {
@@ -948,6 +973,8 @@ export const VisitsDashboard: React.FC = () => {
           </div>
           )}
 
+          {currentUser?.role !== 'sales_rep' && (
+          <>
           {/* Branch / Region */}
           <div>
             <label className="block text-[11px] font-bold text-slate-600 mb-1">المنطقة / الفرع</label>
@@ -984,6 +1011,8 @@ export const VisitsDashboard: React.FC = () => {
               ))}
             </select>
           </div>
+          </>
+          )}
 
           {/* Geo Verification Filter */}
           <div>
@@ -1017,6 +1046,51 @@ export const VisitsDashboard: React.FC = () => {
             )}
           </div>
         </div>
+      </section>
+
+      {/* عملاء لم تتم زيارتهم هذا الشهر */}
+      <section className="rounded-2xl border border-[var(--tg-line)] bg-white p-3 sm:p-4 space-y-3">
+        <button
+          type="button"
+          onClick={() => { setShowUnvisited((v) => !v); setUnvisitedLimit(30); }}
+          className="w-full flex items-center justify-between gap-2 text-right cursor-pointer"
+          aria-expanded={showUnvisited}
+        >
+          <span className="font-black text-sm text-slate-900">
+            عملاء لم تتم زيارتهم هذا الشهر{showUnvisited ? ` (${unvisitedCustomers.length.toLocaleString('en-US')})` : ''}
+          </span>
+          <span className="text-xs font-black text-slate-600">{showUnvisited ? 'إخفاء ▲' : 'عرض ▼'}</span>
+        </button>
+        {showUnvisited && (
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold text-slate-500">
+              {repFilter === 'all' ? 'كل المناديب — اختر مندوباً من الفلتر أعلاه لعرض عملائه فقط.' : `عملاء المندوب: ${repFilter}`}
+              {search ? ' • مفلتر بالبحث' : ''}
+            </p>
+            {unvisitedCustomers.length === 0 ? (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center text-sm font-extrabold text-emerald-800">لا يوجد عملاء بدون زيارة بهذا الفلتر</div>
+            ) : (
+              <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                {unvisitedCustomers.slice(0, unvisitedLimit).map((c) => (
+                  <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+                    <div className="min-w-0">
+                      <div className="font-black text-sm text-slate-900 truncate">{c.name}</div>
+                      <div className="text-xs font-bold text-slate-600"><span className="font-mono">{c.code}</span>{c.branchName ? ` • ${c.branchName}` : ''}{(c.salesRepName || c.repName) ? ` • ${c.salesRepName || c.repName}` : ''}</div>
+                    </div>
+                    {Number(c.balance) > 0 && (
+                      <div className="text-left shrink-0 font-black text-sm text-rose-700 tabular-nums">{Math.round(Number(c.balance)).toLocaleString('en-US')} ج.م</div>
+                    )}
+                  </div>
+                ))}
+                {unvisitedLimit < unvisitedCustomers.length && (
+                  <button type="button" onClick={() => setUnvisitedLimit((n) => n + 30)} className="w-full py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-black text-slate-800 hover:bg-slate-50 cursor-pointer">
+                    عرض المزيد ({(unvisitedCustomers.length - unvisitedLimit).toLocaleString('en-US')} متبقي)
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Main Results Container */}
@@ -1429,7 +1503,7 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* Customer financial standing if selected */}
               {form.customerId && (
-                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/80 dark:bg-slate-800/50">
+                <div className="vis-box vis-fin">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-black text-slate-700 dark:text-slate-300">
                       موقف العميل المالي الحالي
@@ -1437,7 +1511,7 @@ export const VisitsDashboard: React.FC = () => {
                     <span className="text-[10px] font-bold text-[#2563eb]">بيانات لحظية</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300">
+                    <div className="vis-fin__tile">
                       <div className="text-[10px] text-slate-600 font-black">الرصيد الحالي</div>
                       <div className="font-black text-slate-900 dark:text-white mt-0.5">
                         {formatCurrency(
@@ -1447,7 +1521,7 @@ export const VisitsDashboard: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300">
+                    <div className="vis-fin__tile">
                       <div className="text-[10px] text-slate-600 font-black">الحد الائتماني</div>
                       <div className="font-black text-slate-900 dark:text-white mt-0.5">
                         {formatCurrency(
@@ -1455,7 +1529,7 @@ export const VisitsDashboard: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300">
+                    <div className="vis-fin__tile">
                       <div className="text-[10px] text-slate-600 font-black">المديونية</div>
                       <div className="font-black text-rose-600 mt-0.5">
                         {formatCurrency(
@@ -1469,14 +1543,14 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* GPS Geofencing, Anti-Spoof & Live Camera Proof */}
               {selectedCustomerObj && (
-                <div className="p-4 rounded-2xl border border-[#bfdbfe] bg-gradient-to-br from-[#eff6ff] to-[#dbeafe] space-y-3">
+                <div className="vis-box vis-gps space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-[#2563eb] text-white flex items-center justify-center shadow-xs">
                         <MapPin className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-black text-slate-900">
-                        تحدي وتوثيق موقع الزيارة (GPS)
+                        تحديد وتوثيق موقع الزيارة (GPS)
                       </span>
                     </div>
                     {selectedCustomerObj.latitude && selectedCustomerObj.longitude ? (
@@ -1532,83 +1606,23 @@ export const VisitsDashboard: React.FC = () => {
                       type="button"
                       onClick={() => requestCurrentRepGps()}
                       disabled={isCapturingGps}
-                      className="w-full py-2.5 px-3 rounded-xl bg-white border border-[#bfdbfe] text-[#1d4ed8] text-xs font-black hover:bg-[var(--app-primary-tint)] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="vis-btn vis-btn--soft"
                     >
                       <Navigation2 className={`w-3.5 h-3.5 ${isCapturingGps ? 'animate-spin' : ''}`} />
                       <span>{isCapturingGps ? 'جاري قراءة GPS الحي...' : 'تحديث قراءة GPS الحية للتحقق'}</span>
                     </button>
                   )}
 
-                  {/* Live Camera Proof (required when outside range, spoof suspected, or no GPS) */}
-                  {(liveGeoCheck.requiresLivePhoto || !repGps || !selectedCustomerObj.latitude) && (
-                    <div className="rounded-xl bg-white/90 border border-slate-200 p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
-                          <Camera className="w-3.5 h-3.5 text-blue-600" />
-                          {typeof navigator !== 'undefined' && !navigator.onLine
-                            ? 'وضع الأوفلاين: يمكنك حفظ الزيارة مباشرة الآن وستُرفع لطابور المزامنة ومراجعة المشرف'
-                            : liveGeoCheck.requiresLivePhoto
-                              ? 'إلزامي: صورة حية لواجهة المحل بالكاميرا (مختومة بالوقت والموقع)'
-                              : 'صورة حية للمحل بالكاميرا (تُرفع على Cloudinary)'}
-                        </span>
-                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black cursor-pointer transition">
-                          {isUploadingProof ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-                          <span>{isUploadingProof ? 'جاري الختم والرفع...' : proofPhotoUrl ? 'إعادة التصوير' : 'فتح الكاميرا'}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            disabled={isUploadingProof}
-                            onChange={handleCaptureProofPhoto}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                      {proofPhotoUrl && (
-                        <div className="relative h-28 rounded-xl overflow-hidden border border-emerald-300">
-                          <img src={proofPhotoUrl} alt="إثبات الزيارة" className="w-full h-full object-cover" />
-                          <span className="absolute bottom-1 right-1 px-2 py-0.5 rounded bg-emerald-700/90 text-white text-[10px] font-black">
-                            تم التوثيق والختم ✅
-                          </span>
-                        </div>
-                      )}
+                  {/* لا يوجد رفع صور في الزيارات (توفير Cloudinary والـ egress): لو الموقع غير موثّق تُحوَّل الزيارة لمراجعة المشرف */}
+                  {(liveGeoCheck.requiresLivePhoto || !repGps) && (
+                    <div className="visit-note-warn rounded-xl border p-3 text-[11px] font-bold leading-6">
+                      {!repGps
+                        ? 'لم يتم التقاط موقعك. تقدر تسجّل الزيارة، وستظهر للمشرف كزيارة غير موثّقة بالموقع للمراجعة.'
+                        : liveGeoCheck.status === 'suspected_spoof'
+                          ? 'تم رصد اشتباه في إشارة الـ GPS — ستُسجَّل الزيارة وتُحوَّل لمراجعة المشرف.'
+                          : `أنت خارج نطاق المتجر (${formatDistance(liveGeoCheck.distanceMeters ?? 0)}) — ستُسجَّل الزيارة وتُحوَّل لمراجعة المشرف.`}
                     </div>
                   )}
-
-                  {/* صور المنتجات (توثيق الرف/الأصناف) */}
-                  <div className="rounded-xl bg-white/90 border border-slate-200 p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
-                        <Camera className="w-3.5 h-3.5 text-amber-600" />
-                        صور المنتجات (اختياري)
-                      </span>
-                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black cursor-pointer transition">
-                        {isUploadingProductPhotos ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                        <span>{isUploadingProductPhotos ? 'جاري الرفع...' : 'إضافة صور منتجات'}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          multiple
-                          disabled={isUploadingProductPhotos}
-                          onChange={handleCaptureProductPhotos}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                    {productPhotos.length > 0 ? (
-                      <div className="grid grid-cols-4 gap-2">
-                        {productPhotos.map((url, idx) => (
-                          <div key={idx} className="relative h-16 rounded-lg overflow-hidden border border-slate-200 group">
-                            <img src={url} alt={`منتج ${idx + 1}`} className="w-full h-full object-cover" />
-                            <button type="button" onClick={() => setProductPhotos((p) => p.filter((_, i) => i !== idx))} className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><X className="w-3 h-3" /></button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-[10px] font-bold text-slate-500">يمكنك تصوير الرف/الأصناف لتوثيق حالة المنتجات أثناء الزيارة.</div>
-                    )}
-                  </div>
 
                   {/* Primary Customer Pinning (only if not yet pinned OR supervisor/manager override) */}
                   {!selectedCustomerObj.latitude || !selectedCustomerObj.longitude ? (
@@ -1616,7 +1630,7 @@ export const VisitsDashboard: React.FC = () => {
                       type="button"
                       onClick={handlePinCustomerLocation}
                       disabled={isCapturingGps}
-                      className="w-full py-2.5 px-3 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-black text-xs shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="vis-btn vis-btn--primary"
                     >
                       <MapPin className={`w-4 h-4 ${isCapturingGps ? 'animate-bounce' : ''}`} />
                       <span>{isCapturingGps ? 'جاري التثبيت...' : '📍 تثبيت هذا الموقع كـ "الموقع الأساسي للعميل"'}</span>
@@ -1640,15 +1654,15 @@ export const VisitsDashboard: React.FC = () => {
                   )}
 
                   {gpsNotice && (
-                    <div className="text-[11px] font-bold text-[#1d4ed8] bg-[#dbeafe]/80 p-2 rounded-xl border border-[#93c5fd]">
+                    <div className="vis-note">
                       {gpsNotice}
                     </div>
                   )}
 
                   {/* سجل تاريخ GPS بسيط + اعتماد المشرف */}
-                  <div className="rounded-xl bg-white/90 border border-slate-200 p-3 space-y-2">
+                  <div className="vis-hist space-y-2">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <button type="button" onClick={() => setShowGpsHistory(v => !v)} className="text-[11px] font-black text-slate-800 inline-flex items-center gap-1.5 hover:text-[#1d4ed8]">
+                      <button type="button" onClick={() => setShowGpsHistory(v => !v)} className="vis-hist__toggle">
                         <Clock className="w-3.5 h-3.5" /> {showGpsHistory ? 'إخفاء سجل تثبيتات الموقع' : 'عرض سجل تثبيتات الموقع'}
                         <span className="text-[10px] font-bold text-slate-500">({(selectedCustomerObj.locationPinHistory || []).length})</span>
                       </button>
@@ -1737,7 +1751,7 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* حالة الإتمام وأسباب موحّدة (ديناميكية حسب النتيجة) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="block">
+                <label className="block sm:col-span-2">
                   <span className="text-xs font-bold text-[var(--app-text)] block mb-1">حالة إتمام الزيارة</span>
                   <select value={form.completionStatus} onChange={(e) => setForm({ ...form, completionStatus: e.target.value as any, postponementReason: '', failureReason: '' })} className="w-full rounded-2xl border border-slate-300 px-3 py-3 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]">
                     <option value="completed">منفذة/مكتملة</option>
@@ -1745,10 +1759,6 @@ export const VisitsDashboard: React.FC = () => {
                     <option value="postponed">مؤجلة</option>
                     <option value="failed">لم تتم</option>
                   </select>
-                </label>
-                <label className="block">
-                  <span className="text-xs font-bold text-[var(--app-text)] block mb-1">توقيت الزيارة (مرجع)</span>
-                  <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]" />
                 </label>
               </div>
 
@@ -1775,7 +1785,8 @@ export const VisitsDashboard: React.FC = () => {
                 </label>
               )}
 
-              {/* تتبع وقتي فعلي (وصول/بدء/إنهاء) ومسار */}
+              {/* تتبع وقتي فعلي (وصول/بدء/إنهاء) ومسار — مخفي بقرار الإدارة */}
+              {false && (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2">
                 <div className="text-xs font-black text-slate-800">تتبع زمني فعلي (وصول/بدء/إنهاء) ومسار اليوم</div>
                 <div className="grid grid-cols-3 gap-2">
@@ -1789,6 +1800,7 @@ export const VisitsDashboard: React.FC = () => {
                 </div>
                 <div className="text-[10px] font-bold text-slate-500">تُحسب المدة الفعلية تلقائيًا عند إدخال أوقات الوصول/البدء/الإنهاء. عرض المسار على الخريطة يتطلب تفعيل طبقة الخرائط لاحقًا.</div>
               </div>
+              )}
 
               {/* Time & Collected Amount */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

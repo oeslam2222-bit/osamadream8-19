@@ -1,6 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import '../styles/customer-select.css';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { CheckCircle2, Search, User, X } from 'lucide-react';
 import type { Customer } from '../types';
+import { useApp } from '../context/AppContext';
+import { normalizeArabicText } from '../services/arabicMatchingService';
+
+/** تطبيع للبحث: همزات/تاء مربوطة/ى + أرقام عربية → إنجليزي، عشان «احمد» تلاقي «أحمد». */
+const ARABIC_DIGITS = /[\u0660-\u0669\u06F0-\u06F9]/g;
+function normalizeSearch(value: unknown): string {
+  const text = String(value ?? '').replace(ARABIC_DIGITS, (d) => String(d.charCodeAt(0) & 0xf));
+  return normalizeArabicText(text);
+}
 
 interface CustomerSearchSelectProps {
   customers: Customer[];
@@ -25,8 +35,8 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
   onSelect,
   onClear,
   placeholder = 'ابحث باسم العميل أو الكود أو الهاتف...',
-  showRepFilter = false,
-  showBranchFilter = false,
+  showRepFilter: showRepFilterProp = false,
+  showBranchFilter: showBranchFilterProp = false,
   sortBy = 'default',
   maxResults = 50,
   className = '',
@@ -35,6 +45,11 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
   label,
   required,
 }) => {
+  const { currentUser } = useApp();
+  // المندوب يشوف عملاءه بس — مفيش فلاتر مناديب/فروع
+  const isRepUser = currentUser?.role === 'sales_rep';
+  const showRepFilter = showRepFilterProp && !isRepUser;
+  const showBranchFilter = showBranchFilterProp && !isRepUser;
   const [query, setQuery] = useState('');
   const [rep, setRep] = useState('all');
   const [branch, setBranch] = useState('all');
@@ -61,6 +76,25 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [customers, showBranchFilter]);
 
+  // نص بحث مطبَّع لكل عميل، بيتحسب مرة واحدة لكل نسخة من قائمة العملاء (مش مع كل حرف).
+  const searchIndex = useMemo(() => {
+    const index = new WeakMap<Customer, string>();
+    const names = new WeakMap<Customer, string>();
+    for (const c of customers) {
+      names.set(c, normalizeSearch(`${c.name || ''} ${c.storeName || ''} ${c.code || ''}`));
+      index.set(
+        c,
+        normalizeSearch(
+          [c.name, c.storeName, c.code, c.phone, c.branchName, c.salesRepName || c.repName, c.region]
+            .filter(Boolean)
+            .join(' | ')
+        )
+      );
+    }
+    return { get: (c: Customer) => index.get(c), nameOf: (c: Customer) => names.get(c) || '' };
+  }, [customers]);
+  const deferredQuery = useDeferredValue(query);
+
   const filtered = useMemo(() => {
     let list = customers;
     if (showRepFilter && rep !== 'all') {
@@ -69,23 +103,27 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     if (showBranchFilter && branch !== 'all') {
       list = list.filter((c) => (c.branchName || '').trim() === branch);
     }
-    const q = query.trim().toLowerCase();
+    const q = normalizeSearch(deferredQuery);
     if (q) {
-      list = list.filter((c) =>
-        String(c.name || '').toLowerCase().includes(q) ||
-        String(c.code || '').toLowerCase().includes(q) ||
-        String(c.phone || '').toLowerCase().includes(q) ||
-        String(c.branchName || '').toLowerCase().includes(q)
-      );
+      const compactQ = q.replace(/\s+/g, '');
+      list = list.filter((c) => {
+        const hay = searchIndex.get(c) || '';
+        return hay.includes(q) || (compactQ.length >= 4 && hay.replace(/\s+/g, '').includes(compactQ));
+      });
+      // تطابق اسم العميل/كوده الأول، وبعده اللي اتلقى بالمندوب أو الفرع.
+      const byName: Customer[] = [];
+      const other: Customer[] = [];
+      for (const c of list) (searchIndex.nameOf(c).includes(q) ? byName : other).push(c);
+      list = byName.concat(other);
     }
     if (sortBy === 'balance_desc') {
       list = [...list].sort((a, b) => Number(b.currentBalance ?? b.balance ?? 0) - Number(a.currentBalance ?? a.balance ?? 0));
     }
     return list;
-  }, [customers, query, rep, branch, showRepFilter, showBranchFilter, sortBy]);
+  }, [customers, searchIndex, deferredQuery, rep, branch, showRepFilter, showBranchFilter, sortBy]);
 
   return (
-    <div className={`space-y-2 ${className}`} dir="rtl">
+    <div className={`csel space-y-2 ${className}`} dir="rtl">
       {label && (
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-black text-slate-700">{label}{required ? ' *' : ''}</span>
@@ -131,7 +169,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
               {branchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
             </select>
           )}
-          <div className={`overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white ${compact ? 'max-h-40' : 'max-h-56'}`}>
+          <div className={`csel-list overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white ${compact ? 'max-h-40' : 'max-h-56'}`}>
             {filtered.length === 0 ? (
               <div className="p-4 text-center text-xs font-bold text-slate-500">لا يوجد عملاء مطابقون للبحث</div>
             ) : filtered.slice(0, maxResults).map((c) => (
@@ -140,7 +178,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                 type="button"
                 disabled={disabled}
                 onClick={() => onSelect(c)}
-                className="w-full text-right px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-slate-50 transition disabled:opacity-50"
+                className="csel-row w-full text-right px-3 py-2.5 flex items-center justify-between gap-2 transition disabled:opacity-50"
               >
                 <span className="min-w-0 flex items-center gap-2.5">
                   <span className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center shrink-0"><User size={14} /></span>

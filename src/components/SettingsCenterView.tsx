@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import '../styles/ui-polish.css';
 import {
   AlertCircle,
   Bell,
@@ -23,11 +24,14 @@ import { useTheme } from '../context/themeContext';
 import { changeOwnPassword } from '../services/authService';
 import { CANONICAL_BRANCHES } from '../services/branchDirectory';
 import '../styles/settings-center.css';
+import '../styles/settings-polish.css';
 
 type SettingsTab = 'profile' | 'appearance' | 'notifications' | 'branches' | 'data';
 
 interface SettingsCenterViewProps {
   onNavigate?: (tab: string) => void;
+  /** زرار دليل الاستخدام يظهر بس لو الدور مسموح له بتبويب الدليل (غير كده كان بيرجّع للرئيسية) */
+  canOpenGuide?: boolean;
 }
 
 const NOTIFY_KEY = 'tantawy_settings_notify';
@@ -80,10 +84,13 @@ const TABS: Array<{ id: SettingsTab; label: string; icon: React.ElementType }> =
   { id: 'data', label: 'البيانات والصلاحيات', icon: Database }
 ];
 
-export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNavigate }) => {
+export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNavigate, canOpenGuide = false }) => {
   const { currentUser } = useApp();
   const { isDark, setTheme } = useTheme();
   const [tab, setTab] = useState<SettingsTab>('profile');
+  // المندوب: ملف شخصي + مظهر + إشعارات فقط (بدون الفروع والبيانات والصلاحيات)
+  const isRepUser = currentUser?.role === 'sales_rep';
+  const visibleTabs = isRepUser ? TABS.filter((t) => t.id === 'profile' || t.id === 'appearance' || t.id === 'notifications') : TABS;
   const [notify, setNotify] = useState<NotifySettings>(readNotify);
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -166,7 +173,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
             {isDark ? <Sun size={13} /> : <Moon size={13} />}
             {isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
           </button>
-          {onNavigate && (
+          {onNavigate && canOpenGuide && (
             <button
               type="button"
               className="sc-headbtn sc-headbtn--solid"
@@ -181,7 +188,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
 
       {/* ---------- التبويبات ---------- */}
       <nav className="sc-tabs" role="tablist" aria-label="أقسام الإعدادات">
-        {TABS.map((item) => {
+        {visibleTabs.map((item) => {
           const Icon = item.icon;
           return (
             <button
@@ -190,6 +197,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
               role="tab"
               aria-selected={tab === item.id}
               data-active={tab === item.id}
+              data-tab={item.id}
               className="sc-tab"
               onClick={() => setTab(item.id)}
             >
@@ -203,7 +211,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
       {/* ---------- الملف الشخصي ---------- */}
       {tab === 'profile' && (
         <div className="sc-grid">
-          <section className="sc-card">
+          <section className="sc-card sc-card--blue">
             <div className="sc-card__head">
               <span className="sc-card__title">
                 <User size={14} />
@@ -263,13 +271,14 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
             </div>
           </section>
 
-          <section className="sc-card">
+          <section className="sc-card sc-card--teal">
             <div className="sc-card__head">
               <span className="sc-card__title">
                 <Boxes size={14} />
                 ملخص سريع
               </span>
             </div>
+            {!isRepUser && (
             <div className="sc-row">
               <div className="sc-row__icon sc-row__icon--amber">
                 <Building2 size={15} />
@@ -279,13 +288,14 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
                 <div className="sc-row__sub">{CANONICAL_BRANCHES.length} فروع في الدليل الموحّد</div>
               </div>
             </div>
+            )}
             <div className="sc-row">
               <div className="sc-row__icon sc-row__icon--teal">
                 <Palette size={15} />
               </div>
               <div className="sc-row__body">
                 <div className="sc-row__title">الوضع الحالي للواجهة</div>
-                <div className="sc-row__sub">{isDark ? 'ليلي — كحلي داكن وكروت فاتحة' : 'نهاري — خلفية فاتحة وكروت بيضاء'}</div>
+                <div className="sc-row__sub">{isDark ? 'ليلي — خلفية كحلية داكنة وكروت داكنة' : 'نهاري — خلفية فاتحة وكروت بيضاء'}</div>
               </div>
               <button type="button" className="sc-btn sc-btn--ghost" onClick={() => setTheme(!isDark)}>
                 تغيير
@@ -307,7 +317,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
             </div>
           </section>
 
-          <section className="sc-card" style={{ gridColumn: '1 / -1' }}>
+          <section className="sc-card sc-card--violet" style={{ gridColumn: '1 / -1' }}>
             <div className="sc-card__head">
               <span className="sc-card__title">
                 <KeyRound size={14} />
@@ -339,25 +349,25 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
               </div>
             )}
 
-            <form onSubmit={handlePasswordSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <form onSubmit={handlePasswordSubmit} className="sc-pwform grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
               <div>
                 <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-200 mb-1">
                   كلمة المرور الحالية
                 </label>
                 <div className="relative">
-                  <Lock size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Lock size={14} className="sc-input-ic absolute right-3 top-1/2 -translate-y-1/2" />
                   <input
                     type={showCurrentPw ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="اكتب كلمة المرور الحالية"
                     autoComplete="current-password"
-                    className="w-full pr-9 pl-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 text-xs font-bold"
+                    className="sc-input w-full pr-9 pl-9 py-2.5 rounded-xl text-xs font-bold"
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPw((v) => !v)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    className="sc-eye absolute left-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
                     aria-label={showCurrentPw ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                   >
                     {showCurrentPw ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -370,19 +380,19 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
                   كلمة المرور الجديدة (6 أحرف على الأقل)
                 </label>
                 <div className="relative">
-                  <KeyRound size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <KeyRound size={14} className="sc-input-ic absolute right-3 top-1/2 -translate-y-1/2" />
                   <input
                     type={showNewPw ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="مثال: Osama@2026"
                     autoComplete="new-password"
-                    className="w-full pr-9 pl-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 text-xs font-bold"
+                    className="sc-input w-full pr-9 pl-9 py-2.5 rounded-xl text-xs font-bold"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPw((v) => !v)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    className="sc-eye absolute left-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
                     aria-label={showNewPw ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                   >
                     {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -400,7 +410,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="أعد كتابة كلمة المرور الجديدة"
                   autoComplete="new-password"
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 text-xs font-bold"
+                  className="sc-input w-full px-3 py-2.5 rounded-xl text-xs font-bold"
                 />
               </div>
 
@@ -435,7 +445,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
 
       {/* ---------- المظهر ---------- */}
       {tab === 'appearance' && (
-        <section className="sc-card">
+        <section className="sc-card sc-card--amber">
           <div className="sc-card__head">
             <span className="sc-card__title">
               <Palette size={14} />
@@ -492,7 +502,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
 
       {/* ---------- الإشعارات ---------- */}
       {tab === 'notifications' && (
-        <section className="sc-card">
+        <section className="sc-card sc-card--rose">
           <div className="sc-card__head">
             <span className="sc-card__title">
               <Bell size={14} />
@@ -546,8 +556,8 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
       )}
 
       {/* ---------- الفروع ---------- */}
-      {tab === 'branches' && (
-        <section className="sc-card">
+      {tab === 'branches' && !isRepUser && (
+        <section className="sc-card sc-card--sky">
           <div className="sc-card__head">
             <span className="sc-card__title">
               <Building2 size={14} />
@@ -579,9 +589,9 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
       )}
 
       {/* ---------- البيانات والصلاحيات ---------- */}
-      {tab === 'data' && (
+      {tab === 'data' && !isRepUser && (
         <div className="sc-grid">
-          <section className="sc-card">
+          <section className="sc-card sc-card--teal">
             <div className="sc-card__head">
               <span className="sc-card__title">
                 <FileSpreadsheet size={14} />
@@ -632,7 +642,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
             </div>
           </section>
 
-          <section className="sc-card">
+          <section className="sc-card sc-card--violet">
             <div className="sc-card__head">
               <span className="sc-card__title">
                 <Shield size={14} />

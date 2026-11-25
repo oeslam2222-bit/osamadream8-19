@@ -16,6 +16,8 @@ import { getLegalCases, subscribeToLegalCases, referCustomerToLegal, isCustomerR
 import type { LegalCase } from '../services/legalAffairsService';
 import { LegalTransferModal } from './LegalTransferModal';
 import customerMerchantAvatar from '../assets/images/customer_merchant_avatar_1794559829020.jpg';
+import '../styles/customer-card-polish.css';
+import '../styles/rep-card-polish.css';
 import type { Customer, TargetRecord, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { CustomerProfileDrawer } from './CustomerProfileDrawer';
@@ -69,11 +71,19 @@ function normalizeRepName(raw?: string | null): string {
 }
 
 /** مفتاح مطابقة المندوب بعد تطبيع الحروف وإزالة الألقاب/البادئات. */
+// نفس اسم المندوب بيتكرر مع آلاف العملاء، فبنحفظ نتيجة التطبيع بدل ما نعيد ~20 regex كل مرة.
+const repMatchKeyCache = new Map<string, string>();
 function repMatchKey(raw?: string | null): string {
-  return normalizeArabicText(normalizeRepName(raw))
+  const input = String(raw ?? '');
+  const cached = repMatchKeyCache.get(input);
+  if (cached !== undefined) return cached;
+  const key = normalizeArabicText(normalizeRepName(input))
     .replace(/^(المندوب|مندوب|كود|الاستاذ|استاذ)\s+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+  if (repMatchKeyCache.size > 5000) repMatchKeyCache.clear();
+  repMatchKeyCache.set(input, key);
+  return key;
 }
 
 /** البحث عن حساب المندوب بنفس الاسم/اسم المستخدم مع تجاهل فروق الهمزات والألقاب. */
@@ -147,7 +157,9 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const [visibleRepsCount, setVisibleRepsCount] = useState(5);
   const [openCustomerId, setOpenCustomerId] = useState<string | null>(null);
   const [openRepId, setOpenRepId] = useState<string | null>(null);
-  const [repAnalysisTab, setRepAnalysisTab] = useState<'overview' | 'item-sales' | 'monthly' | 'visits'>('overview');
+  const [repAnalysisTab, setRepAnalysisTab] = useState<'overview' | 'item-sales' | 'monthly' | 'visits' | 'customers'>('overview');
+  const [repCustSearch, setRepCustSearch] = useState('');
+  const [repCustLimit, setRepCustLimit] = useState(30);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -616,6 +628,8 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       setOpenRepId(null);
     } else {
       setRepAnalysisTab('overview');
+      setRepCustSearch('');
+      setRepCustLimit(30);
       setOpenRepId(id);
     }
   };
@@ -643,6 +657,26 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const repCustomersWithDebt = useMemo(() => {
     return repCustomers.filter((c) => c.balance > 0 || c.overdue > 0);
   }, [repCustomers]);
+
+  // كل عملاء المندوب المفتوح (من غير تأثر بفلاتر الصفحة)، مع بحث ذكي (همزات/أرقام عربية/كود/هاتف) وترتيب بالمديونية.
+  const repAllCustomers = useMemo(() => {
+    if (!selectedRep) return [] as typeof customersMap;
+    const repKey = repMatchKey(selectedRep.repName);
+    return customersMap
+      .filter((c) => repMatchKey(c.repName) === repKey)
+      .sort((a, b) => (b.balance || 0) - (a.balance || 0));
+  }, [selectedRep, customersMap]);
+
+  const deferredRepCustSearch = useDeferredValue(repCustSearch);
+  const repCustomersShown = useMemo(() => {
+    const q = normalizeArabicText(String(deferredRepCustSearch || '').replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) & 0xf)));
+    if (!q) return repAllCustomers;
+    const qDigits = q.replace(/\D/g, '');
+    return repAllCustomers.filter((c) => {
+      const hay = normalizeArabicText(`${c.name} ${c.code} ${c.branch}`);
+      return hay.includes(q) || q.split(/\s+/).filter(Boolean).every((t) => hay.includes(t)) || (qDigits.length >= 3 && String(c.phone || '').replace(/\D/g, '').includes(qDigits));
+    });
+  }, [repAllCustomers, deferredRepCustSearch]);
 
   const repVisits = useMemo(() => {
     if (!selectedRep) return [];
@@ -886,193 +920,160 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   cust.totalSales > 0 ? Math.min(100, Math.round((cust.totalCollections / cust.totalSales) * 100)) : 0;
                 const hasPhone = Boolean(cust.phone && cust.phone !== '—');
                 const debtTone = exceeded || cust.overdue > 0 ? 'risk' : cust.balance > 0 ? 'warn' : 'ok';
+                const stateTone = exceeded ? 'bad' : cust.overdue > 0 ? 'warn' : 'ok';
+                const stateLabel = exceeded ? 'تجاوز الحد' : cust.overdue > 0 ? 'متأخرات' : 'منتظم';
+                const noReturns = !(cust.returnsCount > 0) && !(cust.returnsValue > 0);
 
                 return (
                   <article
                     key={cust.id}
                     onClick={() => handleOpenCustomer(cust.id)}
-                    className="cust-card group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs transition-all duration-150 hover:border-slate-300 hover:shadow-md cursor-pointer"
+                    data-sector={sector === 'electrical' ? 'electrical' : 'home'}
+                    data-tone={debtTone}
+                    className="cr-card cr-card--list group cursor-pointer transition-all duration-150 hover:shadow-md"
                   >
-                    {/* رأس الكارت: الأفاتار التعبيري + الاسم + الميتاداتا النظيفة بدون كبسولات */}
-                    <div>
-                      <div className="flex items-start gap-3.5">
-                        <div className="relative shrink-0">
-                          <img
-                            src={cust.avatarUrl}
-                            alt={cust.name}
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              const img = e.currentTarget;
-                              if (!img.dataset.fallback) {
-                                img.dataset.fallback = '1';
-                                img.src = customerMerchantAvatar;
-                              }
-                            }}
-                            className={`h-16 w-16 rounded-2xl object-cover object-top bg-slate-100 border-2 ${
-                              debtTone === 'risk'
-                                ? 'border-rose-400'
-                                : debtTone === 'warn'
-                                  ? 'border-amber-400'
-                                  : 'border-emerald-400'
-                            }`}
-                          />
-                          {cust.latitude && cust.longitude && (
-                            <span
-                              title="موقع GPS مثبت"
-                              className="absolute -bottom-1 -left-1 flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-600 text-white border-2 border-white shadow-xs"
-                            >
-                              <MapPin className="h-3.5 w-3.5" />
-                            </span>
+                    {/* هيدر الكارت: تدرّج القطاع (منزلي أزرق / كهرباء كهرماني) */}
+                    <div className="cr-card__head">
+                      <div className="cr-card__avatar-wrap">
+                        {cust.avatarUrl === customerMerchantAvatar ? (
+                          <span className="cr-card__initial" aria-hidden="true">{(cust.name || '؟').trim().charAt(0)}</span>
+                        ) : (
+                        <img
+                          src={cust.avatarUrl}
+                          alt={cust.name}
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (!img.dataset.fallback) {
+                              img.dataset.fallback = '1';
+                              img.src = customerMerchantAvatar;
+                            }
+                          }}
+                          className="cr-card__avatar"
+                        />
+                        )}
+                        {cust.latitude && cust.longitude && (
+                          <span title="موقع GPS مثبت" className="cr-card__gps">
+                            <MapPin className="h-3 w-3" />
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="cr-card__id">
+                        <h3 className="cr-card__name cr-wrap">{cust.name}</h3>
+                        <div className="cr-card__meta">
+                          <span className="cr-card__code">{cust.code}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{sectorLabel}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="cr-card__branch">{cust.branch && cust.branch !== '—' ? cust.branch : 'فرع غير محدد'}</span>
+                        </div>
+                        <div className="cr-card__rep">
+                          المندوب: <strong>{cust.repName}</strong>
+                        </div>
+                      </div>
+                      <span className={`cr-card__state cr-card__state--${stateTone}`}>{stateLabel}</span>
+                    </div>
+
+                    <div className="cr-card__body">
+                      {/* الأرقام التلاتة بألوانها: مديونية أحمر · تحصيل أخضر · مرتجعات كهرماني */}
+                      <div className="cust-rows cr-rows3">
+                        <div className="cust-row cust-row--debt cr-tile cr-tile--debt">
+                          <div className="cr-row__label">
+                            <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                            <span>المديونية والمتأخرات</span>
+                          </div>
+                          <span className="cr-num cr-num--debt">
+                            {fmt(totalDebtDue)} <em>ج.م</em>
+                          </span>
+                          <div className="cr-row__hint">
+                            {exceeded
+                              ? 'تجاوز الحد الائتماني'
+                              : cust.overdue > 0
+                                ? `متأخرات مستحقة: ${fmt(cust.overdue)} ج.م`
+                                : cust.balance > 0
+                                  ? 'مديونية جارية منتظمة'
+                                  : 'حساب منتظم بدون مديونية'}
+                          </div>
+                        </div>
+
+                        <div className="cust-row cust-row--collect cr-tile cr-tile--collect">
+                          <div className="cr-row__label">
+                            <Wallet className="h-3.5 w-3.5 shrink-0" />
+                            <span>التحصيل</span>
+                          </div>
+                          <span className="cr-num cr-num--collect">
+                            {fmt(cust.totalCollections)} <em>ج.م</em>
+                          </span>
+                          <div className="cr-row__hint tabular-nums">
+                            {cust.lastCollectionDate
+                              ? `آخر تحصيل ${cust.lastCollectionDate}${cust.lastCollectionAmount > 0 ? ` (${fmt(cust.lastCollectionAmount)})` : ''}`
+                              : cust.totalSales > 0
+                                ? `نسبة السداد ${collRate}% من المبيعات`
+                                : 'لا توجد تحصيلات مسجلة'}
+                          </div>
+                          {cust.totalSales > 0 && (
+                            <div className="cr-bar" role="img" aria-label={`نسبة السداد ${collRate}%`}>
+                              <u style={{ width: `${collRate}%` }} />
+                            </div>
                           )}
                         </div>
 
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-base sm:text-[17px] font-black text-slate-950 leading-snug line-clamp-2 group-hover:text-blue-900 transition-colors">
-                            {cust.name}
-                          </h3>
-
-                          {/* سطر بيانات وصفية نظيف بفواصل نقطية (Zero-Pill) وتباين عالٍ */}
-                          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-bold text-slate-700">
-                            <span className="font-mono font-black text-slate-900">{cust.code}</span>
-                            <span aria-hidden="true" className="text-slate-400">·</span>
-                            <span>{sectorLabel}</span>
-                            <span aria-hidden="true" className="text-slate-400">·</span>
-                            <span className="truncate max-w-[140px]">
-                              {cust.branch && cust.branch !== '—' ? cust.branch : 'فرع غير محدد'}
-                            </span>
+                        <div className={`cust-row cust-row--returns cr-tile cr-tile--returns${noReturns ? ' is-zero' : ''}`}>
+                          <div className="cr-row__label">
+                            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                            <span>المرتجعات</span>
                           </div>
-
-                          {/* اسم المندوب والمسؤولية */}
-                          <div className="mt-1 text-xs font-semibold text-slate-700 truncate">
-                            المندوب: <span className="font-black text-slate-900">{cust.repName}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* قسم التحصيل والمديونيات والمرتجعات — جدول منسق عالي التباين سهل القراءة أثناء الحركة */}
-                      <div className="cust-rows mt-4 rounded-xl border border-slate-200 bg-slate-50/90 divide-y divide-slate-200">
-                        {/* 1) المديونيات والمتأخرات */}
-                        <div className="cust-row flex items-center justify-between gap-3 px-3.5 py-2.5">
-                          <div className="min-w-0">
-                            <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                              <CreditCard className="h-3.5 w-3.5 text-slate-700 shrink-0" />
-                              <span>المديونية والمتأخرات</span>
-                            </div>
-                            <div className="mt-0.5 text-[11px] font-bold text-slate-700">
-                              {exceeded
-                                ? 'تجاوز الحد الائتماني'
-                                : cust.overdue > 0
-                                  ? `متأخرات مستحقة: ${fmt(cust.overdue)} ج.م`
-                                  : cust.balance > 0
-                                    ? 'مديونية جارية منتظمة'
-                                    : 'حساب منتظم بدون مديونية'}
-                            </div>
-                          </div>
-                          <div className="text-left shrink-0">
-                            <div
-                              className={`text-base sm:text-lg font-black tabular-nums leading-tight ${
-                                debtTone === 'risk'
-                                  ? 'text-rose-700'
-                                  : debtTone === 'warn'
-                                    ? 'text-slate-950'
-                                    : 'text-emerald-700'
-                              }`}
-                            >
-                              {fmt(totalDebtDue)} <span className="text-xs font-extrabold">ج.م</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 2) التحصيل */}
-                        <div className="cust-row flex items-center justify-between gap-3 px-3.5 py-2.5">
-                          <div className="min-w-0">
-                            <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                              <Wallet className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
-                              <span>التحصيل</span>
-                            </div>
-                            <div className="mt-0.5 text-[11px] font-bold text-slate-700 tabular-nums">
-                              {cust.lastCollectionDate
-                                ? `آخر تحصيل ${cust.lastCollectionDate}${cust.lastCollectionAmount > 0 ? ` (${fmt(cust.lastCollectionAmount)})` : ''}`
-                                : cust.totalSales > 0
-                                  ? `نسبة السداد ${collRate}% من المبيعات`
-                                  : 'لا توجد تحصيلات مسجلة'}
-                            </div>
-                          </div>
-                          <div className="text-left shrink-0">
-                            <div className="text-base sm:text-lg font-black tabular-nums text-emerald-800 leading-tight">
-                              {fmt(cust.totalCollections)} <span className="text-xs font-extrabold">ج.م</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 3) المرتجعات */}
-                        <div className="cust-row flex items-center justify-between gap-3 px-3.5 py-2.5">
-                          <div className="min-w-0">
-                            <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                              <RotateCcw className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                              <span>المرتجعات</span>
-                            </div>
-                            <div className="mt-0.5 text-[11px] font-bold text-slate-700">
-                              {cust.returnsCount > 0
-                                ? cust.pendingReturnsCount > 0
-                                  ? `${cust.returnsCount} إذن (${cust.pendingReturnsCount} قيد المتابعة)`
-                                  : `${cust.returnsCount} إذن مرتجع مسجل`
-                                : 'لا توجد مرتجعات مسجلة'}
-                            </div>
-                          </div>
-                          <div className="text-left shrink-0">
-                            <div
-                              className={`text-sm sm:text-base font-black tabular-nums leading-tight ${
-                                cust.pendingReturnsCount > 0
-                                  ? 'text-amber-800'
-                                  : cust.returnsValue > 0
-                                    ? 'text-slate-900'
-                                    : 'text-slate-700'
-                              }`}
-                            >
-                              {cust.returnsValue > 0 ? (
-                                <>
-                                  {fmt(cust.returnsValue)} <span className="text-xs font-extrabold">ج.م</span>
-                                </>
-                              ) : (
-                                `${cust.returnsCount} إذن`
-                              )}
-                            </div>
+                          <span className="cr-num cr-num--returns">
+                            {cust.returnsValue > 0 ? (
+                              <>
+                                {fmt(cust.returnsValue)} <em>ج.م</em>
+                              </>
+                            ) : (
+                              <>{cust.returnsCount} <em>إذن</em></>
+                            )}
+                          </span>
+                          <div className="cr-row__hint">
+                            {cust.returnsCount > 0
+                              ? cust.pendingReturnsCount > 0
+                                ? `${cust.returnsCount} إذن (${cust.pendingReturnsCount} قيد المتابعة)`
+                                : `${cust.returnsCount} إذن مرتجع مسجل`
+                              : 'لا توجد مرتجعات مسجلة'}
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* شريط الإجراءات السريع — أهداف لمس كبيرة مريحة أثناء الحركة */}
-                    <div className="cust-cta mt-3.5 flex items-center gap-2">
-                      {hasPhone && (
-                        <a
-                          href={`tel:${cust.phone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-black text-slate-900 hover:bg-slate-100 transition shrink-0"
-                          title={`اتصال بالعميل: ${cust.phone}`}
-                        >
-                          <Phone className="h-4 w-4 text-slate-800 shrink-0" />
-                          <span className="font-mono tabular-nums" dir="ltr">{cust.phone}</span>
-                        </a>
-                      )}
-                      {canTransferToLegal && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setLegalTransferCustomer(cust);
-                          }}
-                          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#0F2B38] px-3.5 text-xs font-black text-white hover:bg-[#123554] transition shrink-0"
-                        >
-                          <Scale className="h-3.5 w-3.5" />
-                          <span>تحويل للشؤون القانونية</span>
-                        </button>
-                      )}
-                      <div className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-[#0b2337] px-4 text-xs sm:text-sm font-black text-white transition group-hover:bg-[#123554]">
-                        <span>ملف العميل</span>
-                        <ChevronLeft className="h-4 w-4 shrink-0" />
+                      {/* شريط الإجراءات السريع */}
+                      <div className="cr-card__cta">
+                        {hasPhone && (
+                          <a
+                            href={`tel:${cust.phone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="cr-btn cr-btn--ghost"
+                            title={`اتصال بالعميل: ${cust.phone}`}
+                          >
+                            <Phone className="h-4 w-4 shrink-0" />
+                            <span className="font-mono tabular-nums" dir="ltr">{cust.phone}</span>
+                          </a>
+                        )}
+                        {canTransferToLegal && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLegalTransferCustomer(cust);
+                            }}
+                            className={`cr-btn cr-btn--ghost cr-btn--legal${exceeded ? ' is-risk' : ''}`}
+                          >
+                            <Scale className="h-3.5 w-3.5" />
+                            <span>تحويل للشؤون القانونية</span>
+                          </button>
+                        )}
+                        <span className="cr-btn cr-btn--profile">
+                          <span>ملف العميل</span>
+                          <ChevronLeft className="h-4 w-4 shrink-0" />
+                        </span>
                       </div>
                     </div>
                   </article>
@@ -1439,78 +1440,69 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   <div
                     key={rep.repKey}
                     onClick={() => handleOpenRep(rep.repKey)}
-                    className="rep-card tg-card p-4 sm:p-5 cursor-pointer group hover:border-blue-400 transition border-[var(--tg-line)]"
+                    data-sector={rep.sector === 'electrical' ? 'electrical' : 'home'}
+                    data-perf={salesPct >= 100 ? 'top' : salesPct >= 70 ? 'mid' : 'low'}
+                    className="rep-card tg-card rp-card cursor-pointer group transition"
                   >
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={repAvatar}
-                          alt={rep.repName}
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            const img = e.currentTarget;
-                            if (!img.dataset.fallback) {
-                              img.dataset.fallback = '1';
-                              img.src = '/assets/rep-avatar-v2.jpg';
-                            }
-                          }}
-                          className="w-12 h-12 rounded-2xl object-cover object-top border-2 border-blue-200 bg-slate-100 shadow-sm shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <div className="font-black text-base text-[var(--app-text)] truncate">{rep.repName}</div>
-                          <div className="text-xs text-slate-700 font-bold flex items-center gap-1.5 flex-wrap mt-0.5">
-                            {rep.repUsername && (
-                              <span className="font-mono bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-bold">{rep.repUsername}</span>
-                            )}
-                            {rep.branch && rep.branch !== '—' && <span>{rep.branch}</span>}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-black ${getSectorColor(rep.sector)}`}>
-                              {getSectorLabel(rep.sector)}
-                            </span>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-indigo-50 text-indigo-900 border border-indigo-200">
-                              مشرف: {rep.supervisor}
-                            </span>
-                          </div>
+                    {/* هيدر بلون القطاع: المندوب + الفرع + المشرف + نسبة تحقيق البيع */}
+                    <div className="rp-hd">
+                      <img
+                        src={repAvatar}
+                        alt={rep.repName}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          if (!img.dataset.fallback) {
+                            img.dataset.fallback = '1';
+                            img.src = '/assets/rep-avatar-v2.jpg';
+                          }
+                        }}
+                        className="rp-hd__av"
+                      />
+                      <div className="rp-hd__id">
+                        <div className="rp-hd__name" title={rep.repName}>{rep.repName}</div>
+                        <div className="rp-hd__meta">
+                          {rep.repUsername && <span className="rp-hd__user">{rep.repUsername}</span>}
+                          {rep.branch && rep.branch !== '—' && <span>{rep.branch}</span>}
+                        </div>
+                        <div className="rp-hd__chips">
+                          <span className="rp-chip">{getSectorLabel(rep.sector)}</span>
+                          <span className="rp-chip">مشرف: {rep.supervisor}</span>
                         </div>
                       </div>
-                      <span className={`text-xs font-black px-2.5 py-0.5 rounded-lg shrink-0 tabular-nums ${
-                        salesPct >= 100 ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
-                        salesPct >= 70 ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                        'bg-rose-100 text-rose-900 border border-rose-300'
-                      }`}>
-                        {salesPct}%
-                      </span>
+                      <span className="rp-pct" title="نسبة تحقيق هدف البيع">{salesPct}%</span>
                     </div>
 
-                    <div className="rep-mini grid grid-cols-2 gap-2 mb-2.5">
-                      <div className="bg-slate-100/80 rounded-xl p-3 border border-slate-200">
-                        <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">مديونية عملائه</div>
-                        <div className="text-sm font-black text-[var(--app-text)] tabular-nums">{fmt(rep.debt)}</div>
+                    <div className="rp-bd">
+                      <div className="rp-tiles">
+                        <div className="rp-tile rp-tile--debt">
+                          <span className="rp-tile__l">مديونية عملائه</span>
+                          <span className="rp-tile__v">{fmt(rep.debt)}</span>
+                        </div>
+                        <div className={`rp-tile ${rep.overdue > 0 ? 'rp-tile--bad' : 'rp-tile--ok'}`}>
+                          <span className="rp-tile__l">متأخرات</span>
+                          <span className="rp-tile__v">{fmt(rep.overdue)}</span>
+                        </div>
                       </div>
-                      <div className="bg-slate-100/80 rounded-xl p-3 border border-slate-200">
-                        <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">متأخرات</div>
-                        <div className={`text-sm font-black tabular-nums ${rep.overdue > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{fmt(rep.overdue)}</div>
-                      </div>
-                    </div>
 
-                    <div className="rep-mini grid grid-cols-2 gap-2 mb-3">
-                      <div className="bg-blue-50/70 rounded-xl p-3 border border-blue-200/70">
-                        <div className="text-[11px] font-extrabold text-blue-900 mb-0.5">مبيعات</div>
-                        <div className="text-sm font-black text-blue-800 tabular-nums">{fmt(rep.salesAchieved)}</div>
+                      <div className="rp-tiles">
+                        <div className="rp-tile rp-tile--sales">
+                          <span className="rp-tile__l">مبيعات</span>
+                          <span className="rp-tile__v">{fmt(rep.salesAchieved)}</span>
+                        </div>
+                        <div className="rp-tile rp-tile--coll">
+                          <span className="rp-tile__l">تحصيل</span>
+                          <span className="rp-tile__v">{fmt(rep.collectionAchieved)}</span>
+                        </div>
                       </div>
-                      <div className="bg-emerald-50/70 rounded-xl p-3 border border-emerald-200/70">
-                        <div className="text-[11px] font-extrabold text-emerald-900 mb-0.5">تحصيل</div>
-                        <div className="text-sm font-black text-emerald-800 tabular-nums">{fmt(rep.collectionAchieved)}</div>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center justify-between pt-3 border-t border-[var(--tg-line)] text-xs">
-                      <span className="font-extrabold text-slate-700">عملاؤه: <strong className="text-[var(--app-text)] tabular-nums">{rep.customerCount}</strong></span>
-                      <span className="inline-flex items-center gap-1 font-black text-blue-700 group-hover:text-blue-800">
-                        فتح الملف
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                      </span>
+                      <div className="rp-ft">
+                        <span className="rp-ft__c">عملاؤه: <strong className="tabular-nums">{rep.customerCount}</strong></span>
+                        <span className="rp-ft__open">
+                          فتح الملف
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1632,6 +1624,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   { key: 'overview' as const, label: 'نظرة عامة', icon: <Activity className="w-4 h-4" /> },
                   { key: 'item-sales' as const, label: 'مبيعات الأصناف', icon: <Package className="w-4 h-4" /> },
                   { key: 'monthly' as const, label: 'أداء الشهور', icon: <BarChart3 className="w-4 h-4" /> },
+                  { key: 'customers' as const, label: `العملاء (${repAllCustomers.length})`, icon: <Users className="w-4 h-4" /> },
                   { key: 'visits' as const, label: `الزيارات (${repMonthlyVisitsCount})`, icon: <MapPin className="w-4 h-4" /> },
                 ].map((t) => {
                   const active = repAnalysisTab === t.key;
@@ -1791,6 +1784,53 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               )}
 
               {/* تبويب 3: الزيارات */}
+              {repAnalysisTab === 'customers' && (
+                <div className="space-y-3">
+                  <div className="rounded-2xl bg-white border border-slate-200 p-3 shadow-sm space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-black text-base text-slate-900">عملاء المندوب ({repCustomersShown.length.toLocaleString('en-US')}{repCustomersShown.length !== repAllCustomers.length ? ` من ${repAllCustomers.length.toLocaleString('en-US')}` : ''})</div>
+                      <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800">عليهم مديونية: {repCustomersWithDebt.length}</span>
+                    </div>
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="search"
+                        value={repCustSearch}
+                        onChange={(e) => { setRepCustSearch(e.target.value); setRepCustLimit(30); }}
+                        placeholder="ابحث في عملاء المندوب بالاسم أو الكود أو الهاتف..."
+                        className="w-full h-10 pr-9 pl-3 rounded-xl border border-slate-200 bg-white text-xs font-bold focus:outline-none focus:border-[#102b4e]"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {repCustomersShown.length === 0 ? (
+                      <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-extrabold text-slate-700">لا يوجد عملاء مطابقين</div>
+                    ) : (
+                      repCustomersShown.slice(0, repCustLimit).map((c) => (
+                        <div key={c.id} onClick={() => { setOpenRepId(null); setOpenCustomerId(c.id); }} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-300 hover:bg-blue-50/40 cursor-pointer transition">
+                          <div className="min-w-0 flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-800 font-black flex items-center justify-center shrink-0">{(c.name || '?').charAt(0)}</div>
+                            <div className="min-w-0">
+                              <div className="font-black text-sm text-slate-900 truncate">{c.name}</div>
+                              <div className="text-xs font-bold text-slate-700"><span className="font-mono">{c.code}</span>{c.branch ? ` • ${c.branch}` : ''}</div>
+                            </div>
+                          </div>
+                          <div className="text-left shrink-0">
+                            <div className={`font-black text-sm tabular-nums ${c.balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{fmt(c.balance)} ج.م</div>
+                            <div className="text-xs font-bold text-slate-700">{c.balance > 0 ? 'مديونية' : 'لا مديونية'}</div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {repCustLimit < repCustomersShown.length && (
+                      <button type="button" onClick={() => setRepCustLimit((n) => n + 30)} className="w-full py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-black text-slate-800 hover:bg-slate-50 cursor-pointer">
+                        عرض المزيد ({(repCustomersShown.length - repCustLimit).toLocaleString('en-US')} متبقي)
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {repAnalysisTab === 'visits' && (
                 <div className="space-y-3">
                   <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm flex items-center justify-between gap-2">

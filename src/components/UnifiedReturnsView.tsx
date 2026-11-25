@@ -29,7 +29,6 @@ import {
   X,
   XCircle,
   Printer,
-  FileSpreadsheet,
   Download,
   ShieldCheck,
   Lock
@@ -45,6 +44,7 @@ import {
 } from '../services/geoVerificationService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Customer, CustomerVisit, Product } from '../types';
+import '../styles/returns-polish.css';
 
 interface ReturnedItemDraft {
   id: string;
@@ -551,7 +551,7 @@ export const UnifiedReturnsView: React.FC = () => {
   );
 
   return (
-    <div className="tg-dash space-y-4 pb-16" dir="rtl">
+    <div className="tg-dash cr-page space-y-4 pb-16" dir="rtl">
 
       {/* Flash Alert (توحيد مع tg-toast) */}
       {flashMsg && (
@@ -656,7 +656,7 @@ export const UnifiedReturnsView: React.FC = () => {
       </section>
 
       {/* الفلاتر والبحث — هوية موحدة */}
-      <section className="tg-card p-4 sm:p-5 space-y-4">
+      <section className="tg-card rt-filters p-4 sm:p-5 space-y-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Status Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
@@ -707,20 +707,20 @@ export const UnifiedReturnsView: React.FC = () => {
           </div>
 
           {/* Search & Branch Filter */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <div className="relative flex-1 sm:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="rt-search relative min-w-0 flex-1 basis-[220px] sm:flex-none sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-[1]" />
               <DebouncedSearchInput
                 type="text"
                 value={searchTerm}
                 onChange={setSearchTerm}
                 placeholder="بحث باسم العميل، الكود، الصنف..."
-                className="tg-input"
+                className="tg-input tg-input--search"
                 delay={250}
               />
             </div>
 
-            {branches.length > 2 && (
+            {branches.length > 2 && currentUser?.role !== 'sales_rep' && (
               <select
                 aria-label="تصفية الفرع"
                 value={selectedBranchFilter}
@@ -741,7 +741,7 @@ export const UnifiedReturnsView: React.FC = () => {
                   onClick={() => setActiveSectorFilter('home')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
                     activeSectorFilter === 'home'
-                      ? 'bg-[#102b4e] text-white shadow-2xs'
+                      ? 'bg-[var(--cc-sector-home)] text-white shadow-2xs'
                       : 'text-slate-600 hover:bg-white'
                   }`}
                 >
@@ -752,7 +752,7 @@ export const UnifiedReturnsView: React.FC = () => {
                   onClick={() => setActiveSectorFilter('electrical')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
                     activeSectorFilter === 'electrical'
-                      ? 'bg-amber-600 text-white shadow-2xs'
+                      ? 'bg-[var(--cc-sector-electrical)] text-white shadow-2xs'
                       : 'text-slate-600 hover:bg-white'
                   }`}
                 >
@@ -800,60 +800,36 @@ export const UnifiedReturnsView: React.FC = () => {
             const isClosed = status === 'مغلق';
             const isAtWarehouse = status === 'تم الاستلام بالمخزن' || status === 'جاري تصفية المرتجع';
             const isPending = !isClosed && !isAtWarehouse && status !== 'مرفوض';
+            const retStage = isClosed ? 'closed' : status === 'مرفوض' ? 'rejected' : isAtWarehouse ? 'warehouse' : (status === 'بانتظار المشرف' || status === 'عند العميل') ? 'pending' : 'process';
 
             return (
               <div
                 key={visit.id}
                 data-tone={isClosed ? 'ok' : status === 'مرفوض' ? 'risk' : 'warn'}
-                className="ret-card sc-card rounded-[22px] border p-4 sm:p-5 transition space-y-3.5"
+                data-st={retStage}
+                className="ret-card sc-card rt-card rounded-[22px] border p-4 sm:p-5 transition space-y-3.5"
               >
-                {/* Header: Customer Name, Status Badge, Handled info */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black ${
-                        isClosed
-                          ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]'
-                          : isAtWarehouse
-                          ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]'
-                          : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]'
-                      }`}
-                    >
+                {/* الهيدر: كونتينر بلون مرحلة المرتجع (العميل · الحالة · القيمة) */}
+                <div className="rt-hd">
+                  <div className="rt-hd__main">
+                    <div className="rt-hd__ico" aria-hidden="true">
                       <RotateCcw className="w-5 h-5" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm sm:text-base font-black text-slate-900">
+                    <div className="rt-hd__id">
+                      <div className="rt-hd__row">
+                        <span className="rt-hd__name">
                           {visit.customerName || customer?.name || 'عميل مسجل'}
                         </span>
                         {visit.customerCode && (
-                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-mono font-bold">
-                            كود: {visit.customerCode}
-                          </span>
+                          <span className="rt-hd__code">كود: {visit.customerCode}</span>
                         )}
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
-                            isClosed
-                              ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
-                              : isAtWarehouse
-                              ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)]'
-                              : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]'
-                          }`}
-                        >
+                        <span className="rt-badge">
                           {status === 'عند العميل' ? 'عميل لديه مرتجع (عند العميل)' : status}
                         </span>
                         {visit.geoVerification?.status && (() => {
                           const gMeta = geoStatusBadgeMeta(visit.geoVerification.status);
-                          const gCls =
-                            gMeta.tone === 'ok'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : gMeta.tone === 'warn'
-                              ? 'bg-amber-50 text-amber-800 border-amber-200'
-                              : gMeta.tone === 'risk'
-                              ? 'bg-rose-50 text-rose-800 border-rose-200'
-                              : 'bg-slate-100 text-slate-600 border-slate-200';
                           return (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${gCls}`}>
+                            <span className={`rt-geo rt-geo--${gMeta.tone}`}>
                               <MapPin className="w-3 h-3" />
                               {gMeta.label}
                               {visit.geoVerification.distanceMeters !== undefined && ` (${formatDistance(visit.geoVerification.distanceMeters)})`}
@@ -861,32 +837,30 @@ export const UnifiedReturnsView: React.FC = () => {
                           );
                         })()}
                       </div>
-                      <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span>المندوب: <strong className="text-slate-800">{visit.repName}</strong></span>
-                        <span>•</span>
-                        <span>الفرع: <strong className="text-slate-800">{visit.branchName || 'الفرع الرئيسي'}</strong></span>
-                        <span>•</span>
-                        <span>التاريخ: <strong className="text-slate-800">{visit.date} {visit.time || ''}</strong></span>
+                      <div className="rt-hd__meta">
+                        <span>المندوب: <strong>{visit.repName}</strong></span>
+                        <span aria-hidden="true">•</span>
+                        <span>الفرع: <strong>{visit.branchName || 'الفرع الرئيسي'}</strong></span>
+                        <span aria-hidden="true">•</span>
+                        <span>التاريخ: <strong>{visit.date} {visit.time || ''}</strong></span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Value Summary */}
-                  <div className="flex items-center gap-3 sm:self-center">
-                    <div className="text-left sm:text-right">
-                      <div className="text-[10px] text-slate-400 font-bold">إجمالي قيمة المرتجع</div>
-                      <div className="text-base sm:text-lg font-black text-[var(--app-warn-text)] app-num">
-                        {formatCurrency(Number(visit.returnValue) || 0)}
-                      </div>
+                  <div className="rt-val">
+                    <div className="rt-val__l">إجمالي قيمة المرتجع</div>
+                    <div className="rt-val__n app-num">
+                      {formatCurrency(Number(visit.returnValue) || 0)}
                     </div>
                   </div>
                 </div>
 
+                <div className="rt-bd space-y-3.5">
                 {/* Return Details & Attached Items */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
                   {/* Items Description */}
-                  <div className="md:col-span-2 bg-slate-50/80 rounded-2xl p-3 border border-slate-200/60 space-y-1.5">
-                    <div className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
+                  <div className="md:col-span-2 rt-box rt-box--items space-y-1.5">
+                    <div className="rt-box__t text-[11px] font-black flex items-center gap-1.5">
                       <Boxes className="w-3.5 h-3.5 text-slate-500" />
                       <span>تفاصيل الأصناف والكميات المرتجعة:</span>
                     </div>
@@ -901,8 +875,8 @@ export const UnifiedReturnsView: React.FC = () => {
                   </div>
 
                   {/* Customer Contact & Branch */}
-                  <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-200/60 space-y-1.5 text-[11px]">
-                    <div className="font-black text-slate-800 flex items-center gap-1.5">
+                  <div className="rt-box rt-box--contact space-y-1.5 text-[11px]">
+                    <div className="rt-box__t font-black flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-slate-500" />
                       <span>بيانات التواصل:</span>
                     </div>
@@ -958,9 +932,9 @@ export const UnifiedReturnsView: React.FC = () => {
                 )}
 
                 {/* Action Buttons for Warehouse / Supervisor / Manager / Admin */}
-                <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 text-xs">
+                <div className="rt-ft flex items-center justify-between flex-wrap gap-2 pt-3 text-xs">
                   <div className="text-[11px] text-slate-500 font-bold">
-                    حالة الطلب: <strong className="text-slate-800">{status}</strong>
+                    حالة الطلب: <strong className="rt-ft__st">{status}</strong>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1084,23 +1058,15 @@ export const UnifiedReturnsView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setPrintReturnVoucher(visit)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] border border-slate-300 transition cursor-pointer"
+                      className="rt-print inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer"
                       title="طباعة إذن استلام بضاعة المرتجع للمخزن"
                     >
                       <Printer className="w-3.5 h-3.5 text-[var(--app-text)]" />
                       <span>طباعة إذن المخزن</span>
                     </button>
 
-                    <button
-                      type="button"
-                      disabled
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-500 text-slate-300 font-bold text-[11px] border border-slate-700 transition cursor-not-allowed opacity-50"
-                      title="تصدير Excel معطل — متاح للفواتير فقط"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5" />
-                      <span>إكسل الأصناف (مغلق)</span>
-                    </button>
                   </div>
+                </div>
                 </div>
 
               </div>
@@ -1189,6 +1155,8 @@ export const UnifiedReturnsView: React.FC = () => {
                 onClear={() => { setSelectedCustomer(null); setCustomerSearch(''); }}
                 placeholder="ابحث باسم العميل أو الكود أو الهاتف أو الفرع..."
                 compact
+                showRepFilter
+                showBranchFilter
                 maxResults={40}
               />
 
@@ -1309,7 +1277,7 @@ export const UnifiedReturnsView: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="ret-grid grid grid-cols-1 md:grid-cols-2 gap-2.5">
                         <div>
                           <label className="text-[10px] text-slate-500 font-bold block mb-1">اسم الصنف أو كوده:</label>
                           <div className="relative">
@@ -1374,7 +1342,7 @@ export const UnifiedReturnsView: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="ret-grid grid grid-cols-3 gap-2.5">
                         <div>
                           <label className="text-[10px] text-slate-500 font-bold block mb-1">عدد الكراتين:</label>
                           <input

@@ -3,7 +3,7 @@ import {
   ShoppingCart, Wallet, PackageSearch, MapPin, TrendingUp,
   Users, Target, CalendarCheck, ReceiptText,
   Activity, Boxes, Flame,
-  Sparkles, CreditCard, Coins, ArrowLeft, Tag, Home, Zap,
+  Sparkles, CreditCard, Coins, ArrowLeft, Tag, Home, Zap, RotateCcw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { filterPromotionsForUser, inferOfferSector } from '../services/promotionService';
@@ -12,6 +12,7 @@ import { inferCustomerSector } from '../data/branchDefinitions';
 import { inferTargetSector } from '../services/targetService';
 import { applyCustomerSectorHeuristic, isElectricalLabel } from '../services/sectorResolver';
 import { isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import { KpiCard } from './ui/KpiCard';
 import type { Customer, CustomerVisit, Invoice } from '../types';
 
 interface DreamDeliveryDashboardProps {
@@ -461,13 +462,6 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     { id: 'activity' as const, label: 'الأنشطة والاختصارات', icon: Activity },
   ];
 
-  const pctBadgeTone = (pct: number) =>
-    pct >= 80
-      ? 'text-emerald-600 dark:text-emerald-400'
-      : pct >= 50
-      ? 'text-amber-600 dark:text-amber-400'
-      : 'text-red-600 dark:text-red-400';
-
   const pctBadgeLabel = (pct: number) => (pct >= 80 ? 'ممتاز' : pct >= 50 ? 'جيد' : 'يحتاج تحسين');
 
   return (
@@ -576,7 +570,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
       </section>
 
       {/* ---------- بطاقات القطاعات المنفصلة (منزلي ≠ كهرباء) ---------- */}
-      <section className={`grid gap-4 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+      <section className={`kpi-sectors ${visibleSectorCards.length > 1 ? 'kpi-sectors--2' : ''}`}>
         {visibleSectorCards.map((sec) => {
           const isHome = sec.sector === 'home';
           const accentBorder = isHome
@@ -616,85 +610,57 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 </span>
               </div>
 
-              {/* 4 KPI cards per sector */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Sales — أزرق ثابت */}
-                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
-                  <div className="flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
-                    <span>مبيعات {MONTHS_AR[latestPeriod.month - 1]} — المحقق</span>
-                    <ShoppingCart size={14} className="text-blue-600" />
-                  </div>
-                  <div className="mt-1 text-xl font-black text-slate-900 dark:text-white tg-num">
-                    {fmt(sec.monthSales)} <span className="text-xs font-bold text-slate-500">ج.م</span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-blue-500"
-                      style={{ width: `${Math.min(100, Math.max(0, sec.salesPercent))}%` }}
-                    />
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] font-bold">
-                    <span className="text-slate-500 dark:text-slate-400">
-                      المستهدف: <span className="tg-num">{fmt(sec.monthSalesTarget)}</span>
-                    </span>
-                    <span className={`${pctBadgeTone(sec.salesPercent)} whitespace-nowrap`}>
+              {/* 4 KPI cards per sector — الشكل الموحّد .kpi-card */}
+              <div className="kpi-cards">
+                <KpiCard
+                  tone="sales"
+                  label={<>مبيعات {MONTHS_AR[latestPeriod.month - 1]}</>}
+                  value={<span className="tg-num">{fmt(sec.monthSales)}</span>}
+                  unit="ج.م"
+                  meta={<>المستهدف: <span className="tg-num">{fmt(sec.monthSalesTarget)}</span></>}
+                  progress={sec.salesPercent}
+                  icon={<ShoppingCart />}
+                  badge={
+                    <>
                       <span className="tg-num">{sec.salesPercent}%</span> ({pctBadgeLabel(sec.salesPercent)})
-                    </span>
-                  </div>
-                </div>
+                    </>
+                  }
+                />
 
-                {/* Collection — أخضر ثابت */}
-                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
-                  <div className="flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
-                    <span>تحصيل {MONTHS_AR[latestPeriod.month - 1]} — المحقق</span>
-                    <Wallet size={14} className="text-emerald-600" />
-                  </div>
-                  <div className="mt-1 text-xl font-black text-slate-900 dark:text-white tg-num">
-                    {fmt(sec.monthCollection)} <span className="text-xs font-bold text-slate-500">ج.م</span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-emerald-500"
-                      style={{ width: `${Math.min(100, Math.max(0, sec.collectionPercent))}%` }}
-                    />
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] font-bold">
-                    <span className="text-slate-500 dark:text-slate-400">
-                      المستهدف: <span className="tg-num">{fmt(sec.monthCollectionTarget)}</span>
-                    </span>
-                    <span className={`${pctBadgeTone(sec.collectionPercent)} whitespace-nowrap`}>
+                <KpiCard
+                  tone="collection"
+                  label={<>تحصيل {MONTHS_AR[latestPeriod.month - 1]}</>}
+                  value={<span className="tg-num">{fmt(sec.monthCollection)}</span>}
+                  unit="ج.م"
+                  meta={<>المستهدف: <span className="tg-num">{fmt(sec.monthCollectionTarget)}</span></>}
+                  progress={sec.collectionPercent}
+                  icon={<Wallet />}
+                  badge={
+                    <>
                       <span className="tg-num">{sec.collectionPercent}%</span> ({pctBadgeLabel(sec.collectionPercent)})
-                    </span>
-                  </div>
-                </div>
+                    </>
+                  }
+                />
 
-                {/* Debts — أحمر (مؤشر سلبي) */}
-                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
-                  <div className="flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
-                    <span>مديونيات العملاء ({sec.title})</span>
-                    <CreditCard size={14} className="text-red-600" />
-                  </div>
-                  <div className="mt-1 text-xl font-black text-red-600 dark:text-red-400 tg-num">
-                    {fmt(sec.totalDebt)} <span className="text-xs font-bold opacity-80">ج.م</span>
-                  </div>
-                  <div className="mt-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                    إجمالي الرصيد القائم على عملاء القطاع
-                  </div>
-                </div>
+                <KpiCard
+                  tone="debt"
+                  label={<>مديونيات العملاء ({sec.title})</>}
+                  value={<span className="tg-num">{fmt(sec.totalDebt)}</span>}
+                  unit="ج.م"
+                  meta="إجمالي الرصيد القائم على عملاء القطاع"
+                  icon={<CreditCard />}
+                  badge="يحتاج متابعة"
+                />
 
-                {/* Dues — أخضر (ثابت مع التحصيل) */}
-                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
-                  <div className="flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
-                    <span>مستحقات العملاء ({sec.title})</span>
-                    <Coins size={14} className="text-emerald-600" />
-                  </div>
-                  <div className="mt-1 text-xl font-black text-emerald-600 dark:text-emerald-400 tg-num">
-                    {fmt(sec.totalDues)} <span className="text-xs font-bold opacity-80">ج.م</span>
-                  </div>
-                  <div className="mt-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                    إجمالي المستحقات الفعلية لعملاء القطاع
-                  </div>
-                </div>
+                <KpiCard
+                  tone="due"
+                  label={<>مستحقات العملاء ({sec.title})</>}
+                  value={<span className="tg-num">{fmt(sec.totalDues)}</span>}
+                  unit="ج.م"
+                  meta="إجمالي المستحقات الفعلية لعملاء القطاع"
+                  icon={<Coins />}
+                  badge="مستحق التحصيل"
+                />
               </div>
             </div>
           );
@@ -749,7 +715,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
       <div
         role="tablist"
         aria-label="أقسام لوحة التحكم"
-        className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] overflow-x-auto"
+        className="dash-tabs"
       >
         {dashboardSections.map((section) => {
           const Icon = section.icon;
@@ -761,11 +727,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
               role="tab"
               aria-selected={isActive}
               onClick={() => setActiveSection(section.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                isActive
-                  ? 'bg-white dark:bg-[#0F1E36] text-[#2563EB] dark:text-[#93C5FD] shadow-xs'
-                  : 'text-slate-600 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-white'
-              }`}
+              className={`dash-tab ${isActive ? 'is-active' : ''}`}
             >
               <Icon className="w-4 h-4" aria-hidden="true" />
               <span>{section.label}</span>
@@ -784,36 +746,44 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                   {sec.sector === 'home' ? <Home size={16} className="text-blue-500" /> : <Zap size={16} className="text-amber-500" />}
                   ملخص اليوم — {sec.title}
                 </span>
-                <span className="text-[11px] font-bold text-slate-400 tg-num">{todayKey}</span>
+                <span className="text-[11px] font-bold text-[var(--app-text-muted)] tg-num">{todayKey}</span>
               </div>
-              <p className="text-[10px] font-bold text-slate-400 mt-1 -mb-1">
+              <p className="text-[11px] font-bold text-[var(--app-text-muted)] mt-1 -mb-1">
                 حركة اليوم ضمن شهر {MONTHS_AR[latestPeriod.month - 1]} {latestPeriod.year}
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
-                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400">مبيعات اليوم</div>
-                  <div className="mt-1 text-base font-black text-blue-600 dark:text-blue-400 tg-num">
-                    {fmt(sec.totalSalesToday)} <span className="text-[10px] font-bold opacity-80">ج.م</span>
-                  </div>
-                  <div className="text-[9px] text-slate-400 tg-num">{fmt(sec.ordersTodayCount)} طلبية</div>
-                </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
-                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400">تحصيل اليوم</div>
-                  <div className="mt-1 text-base font-black text-emerald-600 dark:text-emerald-400 tg-num">
-                    {fmt(sec.totalCollectedToday)} <span className="text-[10px] font-bold opacity-80">ج.م</span>
-                  </div>
-                  <div className="text-[9px] text-slate-400">تحصيل ميداني</div>
-                </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
-                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400">زيارات اليوم</div>
-                  <div className="mt-1 text-base font-black text-blue-600 dark:text-blue-400 tg-num">{fmt(sec.visitsTodayCount)}</div>
-                  <div className="text-[9px] text-slate-400">زيارات مسجلة</div>
-                </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
-                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400">المرتجعات</div>
-                  <div className="mt-1 text-base font-black text-amber-600 dark:text-amber-400 tg-num">{fmt(sec.returnsCount)}</div>
-                  <div className="text-[9px] text-slate-400">أمر بيع عليه مرتجع</div>
-                </div>
+              <div className="kpi-cards">
+                <KpiCard
+                  tone="sales"
+                  label="مبيعات اليوم"
+                  value={<span className="tg-num">{fmt(sec.totalSalesToday)}</span>}
+                  unit="ج.م"
+                  meta={`${fmt(sec.ordersTodayCount)} طلبية`}
+                  icon={<ShoppingCart />}
+                />
+                <KpiCard
+                  tone="collection"
+                  label="تحصيل اليوم"
+                  value={<span className="tg-num">{fmt(sec.totalCollectedToday)}</span>}
+                  unit="ج.م"
+                  meta="تحصيل ميداني"
+                  icon={<Wallet />}
+                />
+                <KpiCard
+                  tone="visits"
+                  label="زيارات اليوم"
+                  value={<span className="tg-num">{fmt(sec.visitsTodayCount)}</span>}
+                  unit="زيارة"
+                  meta="زيارات مسجلة"
+                  icon={<MapPin />}
+                />
+                <KpiCard
+                  tone="warn"
+                  label="المرتجعات"
+                  value={<span className="tg-num">{fmt(sec.returnsCount)}</span>}
+                  unit="أمر بيع"
+                  meta="أمر بيع عليه مرتجع"
+                  icon={<RotateCcw />}
+                />
               </div>
             </div>
           ))}

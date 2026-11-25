@@ -38,7 +38,8 @@ import {
   Scale,
   X
 } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import '../styles/team-polish.css';
 import { useApp } from '../context/AppContext';
 import {
   doesCustomerBelongToRep,
@@ -92,6 +93,7 @@ export const UserManager: React.FC = () => {
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('الكل');
   const [selectedSectorFilter, setSelectedSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const deferredSearch = useDeferredValue(searchQuery);
   const [userFormError, setUserFormError] = useState<string | null>(null);
   const [syncToast, setSyncToast] = useState<string | null>(null);
   const [syncModalData, setSyncModalData] = useState<{ open: boolean; result?: any } | null>(null);
@@ -101,6 +103,17 @@ export const UserManager: React.FC = () => {
   const [repCustomerSearchTerm, setRepCustomerSearchTerm] = useState<string>('');
   const [autoCreateFeedback, setAutoCreateFeedback] = useState<string | null>(null);
   const [visibleUsersCount, setVisibleUsersCount] = useState(10);
+  // يرسم عرضًا واحدًا فقط (جدول أو كروت) بدل الاتنين مع بعض
+  const [isDesktopView, setIsDesktopView] = useState(() =>
+    typeof window === 'undefined' || !window.matchMedia ? true : window.matchMedia('(min-width: 640px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(min-width: 640px)');
+    const on = () => setIsDesktopView(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
   // تحميل تدريجي — تجنّب رندر كل الفريق مرة واحدة.
   const USERS_PER_PAGE = 10;
 
@@ -370,8 +383,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       const uSec = u.sector === 'electrical' ? 'electrical' : 'home';
       if (uSec !== selectedSectorFilter) return false;
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.trim().toLowerCase();
       const matchName = u.name.toLowerCase().includes(q);
       const matchUser = u.username.toLowerCase().includes(q);
       const matchPhone = (u.phone || '').includes(q);
@@ -379,11 +392,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       if (!matchName && !matchUser && !matchPhone && !matchEmail) return false;
     }
     return true;
-  }), [users, isSuperAdminOrDev, currentUser?.branchName, currentUser?.role, selectedBranchFilter, selectedRoleFilter, selectedSectorFilter, searchQuery]);
+  }), [users, isSuperAdminOrDev, currentUser?.branchName, currentUser?.role, selectedBranchFilter, selectedRoleFilter, selectedSectorFilter, deferredSearch]);
 
   useEffect(() => {
     setVisibleUsersCount(USERS_PER_PAGE);
-  }, [selectedBranchFilter, selectedRoleFilter, selectedSectorFilter, searchQuery, users.length]);
+  }, [selectedBranchFilter, selectedRoleFilter, selectedSectorFilter, deferredSearch, users.length]);
 
   const visibleUsers = useMemo(() => {
     return activeUsers.slice(0, visibleUsersCount);
@@ -718,9 +731,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     <div className="user-manager-page tantawy-screen space-y-6 pb-20 max-w-full mx-auto px-2 sm:px-4">
       
       {/* Team & Permissions Command Header */}
-      <section className="relative overflow-hidden rounded-3xl border border-[rgba(201,154,67,.28)] bg-gradient-to-l from-[#0f233d] via-[#162f52] to-[#1a3861] text-white shadow-xl">
-        <div className="absolute -left-12 -bottom-12 w-56 h-56 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute right-1/4 -top-10 w-36 h-36 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+      <section className="tm-hd relative overflow-hidden rounded-3xl text-white">
         <div className="relative p-5 sm:p-7 space-y-4">
           <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
@@ -903,24 +914,24 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             <div
               key={roleKey}
               onClick={() => setSelectedRoleFilter(selectedRoleFilter === roleKey ? 'الكل' : roleKey)}
-              className={`bg-white rounded-3xl p-4 border transition-all cursor-pointer shadow-xs flex flex-col justify-between group ${isSelected ? 'border-[var(--app-navy)] bg-[rgba(16,43,78,.08)] shadow-[0_0_0_3px_rgba(16,43,78,0.15)]' : 'border-[var(--app-line)] hover:border-[var(--app-accent)] hover:shadow-md'}`}
+              className={`tm-role tm-role--${roleKey} ${isSelected ? 'is-on' : ''} cursor-pointer flex flex-col justify-between group`}
             >
               <div className="flex items-center justify-between mb-2">
-                <div className={`w-10 h-10 rounded-2xl ${cfg.bg} ${cfg.border} border flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
-                  <RoleIcon className={`w-5 h-5 ${cfg.text}`} />
+                <div className="tm-role__ico">
+                  <RoleIcon className="w-5 h-5" />
                 </div>
-                <span className="font-black text-sm text-slate-900 app-num">{count} <span className="text-[10px] font-bold text-slate-400">موظف</span></span>
+                <span className="tm-role__n app-num">{count} <small>موظف</small></span>
               </div>
-              <div className="mt-2 font-black text-xs text-slate-900">{cfg.label}</div>
-              <p className="text-[9px] text-slate-500 mt-1.5 leading-relaxed line-clamp-3">
+              <div className="tm-role__t">{cfg.label}</div>
+              <p className="tm-role__d line-clamp-3">
                 {cfg.desc}
               </p>
 
-              <div className="pt-2 mt-2 border-t border-slate-border-soft flex items-center justify-between text-[9px] text-slate-400 font-bold">
-                <span className={isSelected ? 't-navy' : 'text-slate-500'}>
+              <div className="tm-role__ft flex items-center justify-between">
+                <span className="tm-role__hint">
                   {isSelected ? 'تصفية مفعلة' : 'انقر للتصفية'}
                 </span>
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${isSelected ? 'bg-[var(--app-navy)] text-white' : 'bg-slate-100 text-slate-400'}`}>
+                <span className="tm-role__tick">
                   {isSelected ? '✓' : ''}
                 </span>
               </div>
@@ -930,7 +941,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       </div>
 
       {/* Employees Directory: Filter Bar + Card / Table Views */}
-      <div className="bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden">
+      <div className="tm-dir rounded-3xl overflow-hidden">
         
         {/* Top Control Bar */}
         <div className="p-4 sm:p-5 border-b border-slate-100 space-y-3">
@@ -1047,6 +1058,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         </div>
 
   {/* 1. Mobile Cards View (Hidden on Tablet / Desktop) */}
+        {!isDesktopView && (
         <div className="block sm:hidden divide-y divide-slate-100">
           {visibleUsers.map((user) => {
             const cfg = roleConfigs[user.role] || roleConfigs.sales_rep;
@@ -1109,6 +1121,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         className="bg-white border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 focus:outline-none"
                       >
                         <option value="">بدون مشرف مباشر</option>
+                        {user.supervisorId && !branchSupervisors.some((s) => s.id === user.supervisorId) && (
+                          <option value={user.supervisorId}>
+                            {user.supervisorName || users.find((u) => u.id === user.supervisorId)?.name || 'مشرف (فرع آخر)'}
+                          </option>
+                        )}
                         {branchSupervisors.map((s) => (
                           <option key={s.id} value={s.id}>{s.name}</option>
                         ))}
@@ -1156,8 +1173,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             );
           })}
         </div>
+        )}
 
         {/* 2. Desktop Full Table View (Hidden on Mobile) */}
+        {isDesktopView && (
         <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-slate-900 text-white font-bold">
@@ -1335,6 +1354,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -1542,20 +1562,21 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         </div>
                       )}
 
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <div className="relative flex-1">
+                      <div className="um-pw-row">
+                        <div className="um-pw-field">
                           <input
                             type={showEditResetPassword ? 'text' : 'password'}
                             value={editResetPassword}
                             onChange={(e) => setEditResetPassword(e.target.value)}
-                            placeholder="اكتب كلمة مرور جديدة سهلة الحفظ (6 أحرف على الأقل)..."
+                            placeholder="كلمة مرور جديدة (6 أحرف على الأقل)"
                             autoComplete="new-password"
-                            className="w-full p-2.5 pl-9 bg-white border border-blue-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
+                            dir="ltr"
+                            className="um-pw-input"
                           />
                           <button
                             type="button"
                             onClick={() => setShowEditResetPassword((v) => !v)}
-                            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                            className="um-pw-eye"
                             aria-label={showEditResetPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                           >
                             {showEditResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -1565,7 +1586,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                           type="button"
                           disabled={resettingPassword}
                           onClick={handleDirectAdminPasswordReset}
-                          className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-60"
+                          className="um-pw-btn"
                         >
                           <Key className="w-3.5 h-3.5" />
                           <span>{resettingPassword ? 'جاري التعيين...' : 'تعيين كلمة المرور الآن'}</span>

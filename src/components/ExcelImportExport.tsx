@@ -51,6 +51,7 @@ import {
   publishItemSalesSummaries,
   saveItemSalesAggregates,
 } from '../services/itemSalesAggregateService';
+import '../styles/excel-polish.css';
 import {
   downloadCustomerAnalyticsTemplate,
   exportCustomerAnalyticsToExcel
@@ -1531,7 +1532,7 @@ function onEdit(e) {
             ? 'text-teal-800 bg-teal-50 border-teal-200 dark:text-teal-200 dark:bg-teal-500/20 dark:border-teal-400/35'
             : 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-200 dark:bg-blue-500/20 dark:border-blue-400/35';
           return (
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
+            <div className="xl-card xl-card--1 bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex items-start sm:items-center gap-3.5">
                   <div className={`w-14 h-14 rounded-2xl border ${sectorColor} flex items-center justify-center font-black shrink-0`}>
@@ -1568,7 +1569,7 @@ function onEdit(e) {
                     const electricalDebt = electricalCustomers.reduce((sum, c) => sum + (Number(c.currentBalance ?? c.balance ?? 0) || 0), 0);
                     return (
                       <>
-                        <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center min-w-[170px]">
+                        <div className="xl-metric xl-metric--cust px-3.5 py-2 rounded-xl text-center min-w-[170px]">
                           <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">العملاء الحاليين (القطاعين)</div>
                           <div className="mt-1 space-y-0.5 text-[11px] font-black tabular-nums">
                             <div className="flex items-center justify-between gap-3"><span className="text-slate-500">منزلي</span><span className="text-slate-900 tabular-nums">{homeCustomers.length.toLocaleString('en-US')}</span></div>
@@ -1589,7 +1590,7 @@ function onEdit(e) {
               </div>
 
               {/* URL Input Form */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+              <div className="xl-url bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <label htmlFor="customer-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                     <Globe className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
@@ -1608,8 +1609,8 @@ function onEdit(e) {
                   )}
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-1">
+                <div className="xl-urlrow flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1 min-w-0">
                     <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       id="customer-sheet-url"
@@ -1708,7 +1709,7 @@ function onEdit(e) {
         </div>
 
         {/* ---------------- CARD 2: Customer Sales by Item (شيت مبيعات العملاء بالصنف) ---------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
+        <div className="xl-card xl-card--2 bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-[var(--app-accent)] to-teal-700 text-white flex items-center justify-center font-black shrink-0">
@@ -1759,7 +1760,7 @@ function onEdit(e) {
           </div>
 
           {/* URL Input Form */}
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+          <div className="xl-url bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <label htmlFor="customer-sales-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
@@ -1880,7 +1881,7 @@ function onEdit(e) {
         </div>
 
         {/* ---------------- CARD 3: Products, Inventory & Prices (شيت الأصناف والمخزون والأسعار) ---------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
+        <div className="xl-card xl-card--3 bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] flex items-center justify-center font-black shrink-0">
@@ -1926,7 +1927,7 @@ function onEdit(e) {
           </div>
 
           {/* URL Input Form */}
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+          <div className="xl-url bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <label htmlFor="products-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
@@ -1945,8 +1946,8 @@ function onEdit(e) {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
+            <div className="xl-urlrow flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1 min-w-0">
                 <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="products-sheet-url"
@@ -2042,7 +2043,7 @@ function onEdit(e) {
         </div>
 
         {/* ---------------- CARD 4: Sales Rep Targets & Collections (شيت أهداف ومبيعات المناديب) ---------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
+        <div className="xl-card xl-card--4 bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] flex items-center justify-center font-black shrink-0">
@@ -2088,7 +2089,7 @@ function onEdit(e) {
           </div>
 
           {/* URL Input Form */}
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+          <div className="xl-url bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <label htmlFor="targets-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
@@ -2107,8 +2108,8 @@ function onEdit(e) {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
+            <div className="xl-urlrow flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1 min-w-0">
                 <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="targets-sheet-url"
@@ -2204,7 +2205,7 @@ function onEdit(e) {
         </div>
 
         {/* ---------------- CARD 5: Promotional Offers & Discounts (شيت العروض الترويجية والخصومات) ---------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
+        <div className="xl-card xl-card--5 bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)] flex items-center justify-center font-black shrink-0">
@@ -2244,7 +2245,7 @@ function onEdit(e) {
           </div>
 
           {/* URL Input Form */}
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+          <div className="xl-url bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <label htmlFor="offers-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
@@ -2263,8 +2264,8 @@ function onEdit(e) {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
+            <div className="xl-urlrow flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1 min-w-0">
                 <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="offers-sheet-url"

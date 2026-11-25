@@ -106,6 +106,7 @@ interface CustomerItemSalesViewProps {
 }
 
 const SalesFocusV4 = React.lazy(() => import('./itemSales/SalesFocusV4'));
+import '../styles/item-sales-detail-polish.css';
 const ItemSalesInsights = React.lazy(() => import('./itemSales/ItemSalesInsights'));
 
 type SalesViewMode = 'overview' | 'visuals' | 'focus' | 'customers';
@@ -1621,6 +1622,19 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         </div>
       )}
 
+      {showDetailed && insightDocs.length > 0 && (
+        <div className="mb-2 flex items-center">
+          <button
+            type="button"
+            onClick={() => setShowDetailed(false)}
+            className="app-btn app-btn-ghost flex items-center gap-1.5 text-xs sm:text-sm px-3 py-2 cursor-pointer"
+          >
+            <span aria-hidden="true">→</span>
+            <span>رجوع لملخص مبيعات الأصناف</span>
+          </button>
+        </div>
+      )}
+
       {!showDetailed && insightDocs.length > 0 ? (
         <React.Suspense fallback={<div className="ss-card ss-pad ss-empty">جاري التحميل…</div>}>
           <ItemSalesInsights
@@ -1709,7 +1723,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       ) : (
         <>
           {/* Filters */}
-          <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 sm:p-4 space-y-3">
+          <section className="cis-filters bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 sm:p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
@@ -1957,15 +1971,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
 
       {/* View tabs */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-1.5 flex items-center gap-1 flex-wrap">
+      <div className="cis-tabs bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-1.5 flex items-center gap-1 flex-wrap">
         <button
           type="button"
           onClick={() => setActiveView('overview')}
-          className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
-            activeView === 'overview'
-              ? 'bg-[#102b4e] text-white shadow-sm'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-          }`}
+          className={`cis-tab cis-tab--overview ${activeView === 'overview' ? 'is-on' : ''} inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black cursor-pointer`}
         >
           <LayoutDashboard className="w-3.5 h-3.5" />
           لوحة المبيعات
@@ -1973,11 +1983,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveView('visuals')}
-          className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
-            activeView === 'visuals'
-              ? 'bg-[#102b4e] text-white shadow-sm'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-          }`}
+          className={`cis-tab cis-tab--visuals ${activeView === 'visuals' ? 'is-on' : ''} inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black cursor-pointer`}
         >
           <Sparkles className="w-3.5 h-3.5" />
           الرسومات التفاعلية وخريطة الأصناف
@@ -1985,11 +1991,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveView('customers')}
-          className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
-            activeView === 'customers'
-              ? 'bg-[#102b4e] text-white shadow-sm'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-          }`}
+          className={`cis-tab cis-tab--customers ${activeView === 'customers' ? 'is-on' : ''} inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black cursor-pointer`}
         >
           <Users className="w-3.5 h-3.5" />
           تفاصيل العملاء
@@ -2004,11 +2006,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveView('focus')}
-          className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
-            activeView === 'focus'
-              ? 'bg-[#102b4e] text-white shadow-sm'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-          }`}
+          className={`cis-tab cis-tab--focus ${activeView === 'focus' ? 'is-on' : ''} inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black cursor-pointer`}
         >
           <BarChart3 className="w-3.5 h-3.5" />
           تحليل الإجماليات
@@ -2378,7 +2376,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             </section>
           ) : (
           <div className="grid grid-cols-1 gap-4">
-            <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
+            <section className="cis-pivot bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div>
                   <h3 className="text-sm font-black text-[var(--app-text)]">الصنف (البرند) بالشهور</h3>
@@ -2431,7 +2429,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               )}
             </section>
 
-            <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
+            <section className="cis-pivot bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div>
                   <h3 className="text-sm font-black text-[var(--app-text)]">الصنف بالعائلة بالشهور</h3>
@@ -2484,7 +2482,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               )}
             </section>
 
-            <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
+            <section className="cis-pivot bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div>
                   <h3 className="text-sm font-black text-[var(--app-text)]">مبيعات الفروع بالصنف بالشهور</h3>
@@ -2539,7 +2537,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               )}
             </section>
 
-            <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
+            <section className="cis-pivot bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div>
                   <h3 className="text-sm font-black text-[var(--app-text)]">مبيعات الفروع بالعائلة بالشهور</h3>

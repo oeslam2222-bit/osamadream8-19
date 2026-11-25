@@ -526,7 +526,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
         </header>
 
         {/* Dynamics 365 Integration Status & Action Bar (Hidden for all except Developer) */}
-        {isDeveloperRole && (
+        {/* مخفي بقرار الإدارة: لا يظهر زر/حالة Dynamics لأي دور */}
+        {false && isDeveloperRole && (
           <div className="ein-head--sub px-3.5 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-slate-400 font-bold flex items-center gap-1.5">
