@@ -1,6 +1,6 @@
+import InternalNotificationCenter from './InternalNotificationCenter';
 import {
   BarChart3,
-  Bell,
   BookOpen,
   Boxes,
   Building,
@@ -94,8 +94,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCart,
   isSidebarCollapsed = false,
   onToggleSidebar,
-  notificationCount = 0,
-  onOpenNotificationCenter,
   onGlobalNavigate
 }) => {
   const {
@@ -206,29 +204,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   }).length;
   
   const userVisibleInvoices = useMemo(() => getVisibleInvoices(), [getVisibleInvoices]);
-  const pendingOrdersCount = useMemo(
-    () =>
-      userVisibleInvoices.filter((i) => {
-        const status = i.status || '';
-        const lower = status.toLowerCase();
-        // مطابقة الحالة الرئيسية
-        if (
-          status === 'قيد مراجعة المشرف' ||
-          status === 'معلقة بانتظار اعتماد الفرع' ||
-          status === 'قيد المراجعة'
-        )
-          return true;
-        // مطابقةcase-insensitive fallback
-        if (
-          lower.includes('مراجعة') ||
-          lower.includes('معتم') ||
-          lower.includes('معلقة')
-        )
-          return true;
-        return false;
-      }).length,
-    [userVisibleInvoices]
-  );
+  // عدّاد "أوامر البيع": اللي بانتظار اعتماد المستخدم الحالي فقط.
+  // (كان بيعدّ أي حالة فيها "معتم"، يعني الفواتير المعتمدة كمان.)
+  const pendingOrdersCount = useMemo(() => {
+    const role = currentUser.role;
+    const supervisorStatuses = ['قيد مراجعة المشرف', 'معلقة بانتظار اعتماد الفرع', 'قيد المراجعة'];
+    const adminStatuses = ['في انتظار اعتماد الإدارة'];
+    let mine: string[] = [];
+    if (role === 'supervisor') mine = supervisorStatuses;
+    else if (role === 'branch_manager' || role === 'admin' || role === 'developer') mine = [...supervisorStatuses, ...adminStatuses];
+    else return 0;
+    return userVisibleInvoices.filter((i) => mine.includes(i.status || '')).length;
+  }, [userVisibleInvoices, currentUser.role]);
 
   const supervisorName = currentUser.supervisorId
     ? users.find((u) => u.id === currentUser.supervisorId)?.name
@@ -593,19 +580,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Search aria-hidden="true" />
             </button>
 
-            {/* الإشعارات */}
-            {onOpenNotificationCenter && (
-              <button
-                type="button"
-                onClick={onOpenNotificationCenter}
-                className="ds-iconbtn"
-                title={`الإشعارات (${notificationCount} غير مقروء)`}
-                aria-label="مركز الإشعارات"
-              >
-                <Bell aria-hidden="true" />
-                {notificationCount > 0 && <span className="ds-dot" />}
-              </button>
-            )}
+            {/* الإشعارات — مركز الإشعارات الفعلي (كان الجرس مش متوصّل) */}
+            <InternalNotificationCenter onNavigateToTab={(tab) => setActiveTab(tab)} />
 
             {/* الطلبية (أيقونة + رقم فقط علىdesktop، النص في ملف الشخصية) */}
             <button

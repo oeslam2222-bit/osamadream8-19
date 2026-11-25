@@ -575,7 +575,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         customerTaxNumber: effectiveCustomer.taxNumber,
         repName: activeRepUser?.name || currentUser?.name || 'مندوب المبيعات',
         repId: activeRepUser?.id || currentUser?.id,
-        branchName: effectiveCustomer.branchName || activeBranch,
+        branchName: activeBranch || effectiveCustomer.branchName,
         paymentMethod: effectivePaymentMethod,
         repComment: invoiceNotes || undefined,
         notes: `فاتورة مبيعات كاشير دريم - تسجيل بواسطة ${currentUser?.name || 'المندوب'}`,

@@ -244,3 +244,17 @@ html, body { overflow-x: clip !important; }
 /* قائمة الحساب (فيها تسجيل الخروج) كانت بتتقص جوه شريط الأعلى لأنه overflow:hidden،
    فالضغط على "تسجيل الخروج" كان بيقع على الخلفية الشفافة ويقفل القائمة بس. */
 .ds-topbar__main:has(.ds-popover) { overflow: visible !important; }
+
+/* Button used on dark headers (e.g. invoice preview "send to Dynamics") - was never defined */
+.btn-ondark {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(255,255,255,.14); color: #fff;
+  border: 1px solid rgba(255,255,255,.35); border-radius: 10px;
+  white-space: nowrap; transition: background .15s;
+}
+.btn-ondark:hover:not(:disabled) { background: rgba(255,255,255,.24); }
+
+/* Invoice preview: never wider than the screen; wide tables scroll inside their own box */
+.modal-full-mobile { max-width: 100vw; }
+.modal-full-mobile > * { min-width: 0; }
+.modal-full-mobile table { max-width: none; }
