@@ -62,6 +62,7 @@ import type { ClientCatalogProduct, CatalogExportProgress } from '../services/pd
 import { Customer, Product } from '../types';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
 import { COMPANY_WAREHOUSES } from './catalog/warehouses';
+import '../styles/catalog-search.css';
 export { COMPANY_WAREHOUSES };
 
 interface ProductCatalogProps {
@@ -900,7 +901,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     setSearchTerm('');
                     setShowSearchSuggestions(false);
                   }}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 transition-all hover:bg-white/70 hover:text-slate-700"
+                  className="cat-search-x"
                   title="مسح البحث"
                 >
                   <X className="h-5 w-5" />
@@ -909,10 +910,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             </div>
 
           {showSearchSuggestions && searchTerm.trim().length > 0 && (
-            <div className="absolute left-0 right-0 top-full z-[100] mt-2 max-h-96 overflow-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl divide-y divide-slate-200">
-              <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2 text-[11px] font-bold text-slate-600">
+            <div className="cat-sg absolute left-0 right-0 top-full z-[100] mt-2">
+              <div className="cat-sg__hd">
                 <span>اقتراحات البحث الذكي ({searchSuggestions.length} صنف)</span>
-                <span className="text-[10px] font-extrabold text-blue-600">اضغط لاختيار الصنف</span>
+                <span className="cat-sg__hint">اضغط لاختيار الصنف</span>
               </div>
 
               {searchSuggestions.length > 0 ? (
@@ -930,10 +931,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         setSearchTerm(prod.name);
                         setShowSearchSuggestions(false);
                       }}
-                      className="w-full text-right p-3 hover:bg-blue-50/70 transition flex items-center gap-3 cursor-pointer group"
+                      className="cat-sg__row group"
                     >
                       {/* Product Thumbnail */}
-                      <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center p-1">
+                      <div className="cat-sg__thumb">
                         <ProductImage
                           product={prod}
                           cloudinaryConfig={cloudinaryConfig}
@@ -946,7 +947,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       {/* Product Details */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-black text-primary group-hover:text-blue-700 transition truncate">
+                          <span className="cat-sg__name">
                             {prod.name}
                           </span>
                           {promoInfo.hasPromo && (
@@ -958,25 +959,25 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         </div>
 
                         <div className="flex items-center gap-2 mt-1 flex-wrap text-[11px]">
-                          <span className="font-mono font-bold bg-slate-100 text-secondary px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">
+                          <span className="cat-chip">
                             كود: {prod.code}
                           </span>
                           {prod.unifiedCode && (
-                            <span className="font-mono font-black bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 text-[10px]">
+                            <span className="cat-chip cat-chip--uni">
                               #{prod.unifiedCode.replace('#', '')}
                             </span>
                           )}
                           {promoInfo.hasPromo ? (
                             <span className="flex items-center gap-1.5 text-[10px] font-black">
-                              <span className="line-through text-slate-400">
+                              <span className="cat-price-old line-through">
                                 {promoInfo.originalCartonPrice.toLocaleString()} ج.م
                               </span>
-                              <span className="text-emerald-700">
+                              <span className="cat-price-new">
                                 {promoInfo.promoCartonPrice.toLocaleString()} ج.م
                               </span>
                             </span>
                           ) : (
-                            <span className="text-light text-[10px]">
+                            <span className="cat-price">
                               {prod.cartonPrice.toLocaleString()} ج.م
                             </span>
                           )}
@@ -987,15 +988,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div className="shrink-0 text-left">
                         {isAvailable ? (
                           <div className="flex flex-col items-end gap-0.5">
-                            <span className="text-[10px] font-bold text-[var(--app-text)] bg-[var(--app-card-secondary)] px-2 py-0.5 rounded-md border border-[#CBD5E1]">
+                            <span className="cat-stk cat-stk--branch">
                               الفرع: {bStock} ك
                             </span>
-                            <span className="text-[10px] font-bold text-[var(--app-primary-text)] bg-[var(--app-primary-tint)] px-2 py-0.5 rounded-md border border-[#BFDBFE]">
+                            <span className="cat-stk cat-stk--main">
                               أكتوبر: {oStock} ك
                             </span>
                           </div>
                         ) : (
-                          <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                          <span className="cat-stk cat-stk--out">
                             غير متوفر
                           </span>
                         )}
@@ -1962,7 +1963,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             </div>
 
             <div
-              className="w-full max-h-72 aspect-square bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden flex items-center justify-center cursor-zoom-in"
+              className="cat-modal-img w-full max-h-72 aspect-square bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden flex items-center justify-center cursor-zoom-in"
               onClick={() => {
                 const src = getProductImageUrl(selectedProductForModal, cloudinaryConfig);
                 if (src && !src.startsWith('data:image/svg+xml')) {

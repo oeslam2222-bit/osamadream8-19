@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Clock3,
   Coins,
+  CreditCard,
   Flame,
   Lock,
   MapPin,
@@ -23,6 +24,7 @@ import {
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
+import { KpiCard } from './ui/KpiCard';
 import { inferCustomerSector } from '../data/branchDefinitions';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 import { normalizeCloudinaryConfig, optimizeImageUrl, uploadImageToCloudinary } from '../services/cloudinaryService';
@@ -39,6 +41,7 @@ import type { Customer, CustomerVisit } from '../types';
 import { getLegalCases, subscribeToLegalCases, referCustomerToLegal } from '../services/legalAffairsService';
 import type { LegalCase } from '../services/legalAffairsService';
 import { LegalTransferModal } from './LegalTransferModal';
+import repAvatarUrl from '../assets/images/rep_avatar_1794555996338.jpg';
 
 const todayKey = (): string => {
   const now = new Date();
@@ -142,7 +145,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('الكل');
   const [repFilter, setRepFilter] = useState('الكل');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [regionFilter, setRegionFilter] = useState('الكل');
   const [amountByCustomer, setAmountByCustomer] = useState<Record<string, number>>({});
   const [notesByCustomer, setNotesByCustomer] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<string | null>(null);
@@ -180,7 +183,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   // أي تغيير في البحث/الفلاتر يرجّع التحميل لأول دفعة
   useEffect(() => {
     setVisibleCustomersCount(CUSTOMERS_PAGE_SIZE);
-  }, [search, branchFilter, repFilter, activeSector]);
+  }, [search, branchFilter, repFilter, regionFilter, activeSector]);
 
   const repoCustomers = useMemo(() => {
     if (activeSector === 'none') return [];
@@ -199,15 +202,41 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     });
   }, [getVisibleCustomers, customers, users, currentUser, activeSector]);
 
-  const branchOptions = useMemo(
-    () => ['الكل', ...Array.from(new Set(repoCustomers.map((customer) => customer.branchName).filter(Boolean)))],
-    [repoCustomers]
-  );
+  // فلاتر متداخلة (ذكية): اختيار مندوب يضيّق الفروع، واختيار فرع يضيّق المناديب.
+  const repNameOf = (customer: Customer) => customer.salesRepName || customer.repName || 'غير محدد';
+  // المنطقة اللي بتظهر للمندوب/المحصل: المحافظة أولاً، وبعدها المنطقة/الحي
+  const regionOf = (customer: Customer) => customer.governorate || customer.region || '';
+  const branchOptions = useMemo(() => {
+    const set = new Set<string>();
+    repoCustomers.forEach((customer) => {
+      if (repFilter !== 'الكل' && repNameOf(customer) !== repFilter) return;
+      if (customer.branchName) set.add(customer.branchName);
+    });
+    if (branchFilter !== 'الكل') set.add(branchFilter);
+    return ['الكل', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'))];
+  }, [repoCustomers, repFilter, branchFilter]);
 
-  const repOptions = useMemo(
-    () => ['الكل', ...Array.from(new Set(repoCustomers.map((customer) => customer.salesRepName || customer.repName || 'غير محدد')))],
-    [repoCustomers]
-  );
+  const repOptions = useMemo(() => {
+    const set = new Set<string>();
+    repoCustomers.forEach((customer) => {
+      if (branchFilter !== 'الكل' && customer.branchName !== branchFilter) return;
+      set.add(repNameOf(customer));
+    });
+    if (repFilter !== 'الكل') set.add(repFilter);
+    return ['الكل', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'))];
+  }, [repoCustomers, branchFilter, repFilter]);
+
+  const regionOptions = useMemo(() => {
+    const set = new Set<string>();
+    repoCustomers.forEach((customer) => {
+      if (branchFilter !== 'الكل' && customer.branchName !== branchFilter) return;
+      if (repFilter !== 'الكل' && repNameOf(customer) !== repFilter) return;
+      const region = regionOf(customer);
+      if (region) set.add(region);
+    });
+    if (regionFilter !== 'الكل') set.add(regionFilter);
+    return ['الكل', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'))];
+  }, [repoCustomers, branchFilter, repFilter, regionFilter]);
 
   const deferredSearch = useDeferredValue(search);
 
@@ -220,7 +249,8 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     const filtered = repoCustomers.filter((customer) => {
       const branchMatch = branchFilter === 'الكل' || customer.branchName === branchFilter;
       const repMatch = repFilter === 'الكل' || (customer.salesRepName || customer.repName || 'غير محدد') === repFilter;
-      if (!branchMatch || !repMatch) return false;
+      const regionMatch = regionFilter === 'الكل' || regionOf(customer) === regionFilter;
+      if (!branchMatch || !repMatch || !regionMatch) return false;
       if (!q) return true;
 
       const name = customer.name || '';
@@ -244,9 +274,9 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     });
 
     return filtered.sort((a, b) => getCustomerDebt(b) - getCustomerDebt(a));
-  }, [repoCustomers, deferredSearch, branchFilter, repFilter]);
+  }, [repoCustomers, deferredSearch, branchFilter, repFilter, regionFilter]);
 
-  const topOverdueCustomers = useMemo(() => overdueCustomers.slice(0, 5), [overdueCustomers]);
+  const topOverdueCustomers = useMemo(() => overdueCustomers.slice(0, 10), [overdueCustomers]);
 
   const pagedOverdueCustomers = useMemo(
     () => overdueCustomers.slice(0, visibleCustomersCount),
@@ -297,7 +327,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     const byId = new Map<string, string>();
     const byName = new Map<string, string>();
     users.forEach((u) => {
-      const av = '/assets/rep-avatar-v2.jpg';
+      const av = repAvatarUrl;
       if (u.id) byId.set(u.id, av);
       if (u.username) byId.set(u.username, av);
       if (u.name) {
@@ -314,7 +344,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       if (repId && userAvatarLookup.byId.has(repId)) return userAvatarLookup.byId.get(repId)!;
       const targetName = normalizeArabicText(repName || '');
       if (targetName && userAvatarLookup.byName.has(targetName)) return userAvatarLookup.byName.get(targetName)!;
-      return '/assets/rep-avatar-v2.jpg';
+      return repAvatarUrl;
     };
 
     repoCustomers.forEach((customer) => {
@@ -461,8 +491,6 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     return rows.filter((row) => row.collected > 0).sort((a, b) => b.collected - a.collected);
   }, [repSummaries, visits]);
 
-  const selectedCustomer = overdueCustomers.find((customer) => customer.id === selectedCustomerId) ?? overdueCustomers[0] ?? null;
-
   const confirmGeoCheck = useMemo(() => {
     if (!confirmCustomer) return null;
     return verifyVisitLocation({
@@ -588,7 +616,6 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     };
 
     const result = addVisit(visit);
-    const remaining = Math.max(0, debt - amount);
     const shouldPinInitialLocation =
       Boolean(confirmRepGps) &&
       confirmPinInitialLocation &&
@@ -597,11 +624,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
 
     updateCustomer({
       ...customer,
-      balance: remaining,
-      currentBalance: remaining,
-      overdueBalance: remaining,
-      totalOverdue: remaining,
-      dueBalance: remaining,
+      // متابعة فقط: الرصيد والمديونية بتتحدث يدويًا، فمبنغيّرهاش هنا.
       lastCollectionDate: visit.date,
       lastCollectionAmount: amount,
       ...(shouldPinInitialLocation && confirmRepGps
@@ -626,7 +649,6 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     setConfirmCustomer(null);
     setConfirmRepGps(null);
     setConfirmProofPhoto(null);
-    setSelectedCustomerId(customer.id);
     setTimeout(() => setToast(null), 4400);
   };
 
@@ -640,7 +662,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   };
 
   return (
-    <div className="tg-dash space-y-4" dir="rtl">
+    <div className="tg-dash cr-page space-y-4" dir="rtl">
       {/* الهيدر — مطابق لهوية التطبيق */}
       <section className="ds-pagehead">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
@@ -728,14 +750,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         <div className="tg-card !flex-row !items-center !justify-between gap-3 border border-emerald-200 bg-gradient-to-l from-emerald-50 to-white">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src="/assets/rep-avatar-v2.jpg"
+              src={repAvatarUrl}
               alt={topRep.repName}
               referrerPolicy="no-referrer"
               onError={(e) => {
                 const img = e.currentTarget;
                 if (!img.dataset.fallback) {
                   img.dataset.fallback = '1';
-                  img.src = '/assets/rep-avatar-v2.jpg';
+                  img.src = repAvatarUrl;
                 }
               }}
               className="h-12 w-12 shrink-0 rounded-2xl object-cover object-top border-2 border-emerald-300 shadow-sm"
@@ -753,7 +775,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[1.55fr_0.95fr] items-start">
+      <div className="space-y-4">
         {/* قائمة العملاء */}
         <div className="tg-card p-0 overflow-hidden border border-[var(--tg-line)]">
           <div className="border-b border-[var(--tg-line)] bg-white p-4 sm:p-5">
@@ -776,7 +798,21 @@ export const CollectionRecoveryDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <select
+                value={regionFilter}
+                onChange={(event) => setRegionFilter(event.target.value)}
+                aria-label="فلترة بالمنطقة أو المحافظة"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+              >
+                {regionOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option === 'الكل' ? 'كل المناطق / المحافظات' : option}
+                  </option>
+                ))}
+              </select>
+              {currentUser?.role !== 'sales_rep' && (
+              <>
               <select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15">
                 {branchOptions.map((option) => (
                   <option key={option} value={option}>{option === 'الكل' ? 'كل الفروع' : option}</option>
@@ -787,6 +823,8 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                   <option key={option} value={option}>{option === 'الكل' ? 'كل المناديب' : option}</option>
                 ))}
               </select>
+              </>
+              )}
               {canManageSectorGate && (
               <select value={activeSectorFilter} onChange={(event) => setActiveSectorFilter(event.target.value as 'home' | 'electrical')} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15">
                 <option value="home">🏠 منزلي</option>
@@ -797,29 +835,28 @@ export const CollectionRecoveryDashboard: React.FC = () => {
           </div>
 
           <div className="p-4 sm:p-5 space-y-4">
-            {/* أعلى 5 عملاء عليهم مستحقات - بروفايل سريع */}
+            {/* أعلى 10 عملاء عليهم مستحقات - بروفايل سريع */}
             {!search && overdueCustomers.length > 0 && (
               <div className="rounded-2xl border border-amber-200 bg-gradient-to-l from-amber-50/70 to-white p-3.5 sm:p-4">
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Star className="h-4 w-4" /></span>
                     <div>
-                      <h4 className="text-sm font-black text-[#0b2337]">أعلى 5 عملاء عليهم مستحقات</h4>
-                      <p className="text-[10px] font-bold text-slate-500">اضغط على أي عميل لعرض تفاصيله وتسجيل التحصيل</p>
+                      <h4 className="text-sm font-black text-[#0b2337]">أعلى 10 عملاء عليهم مستحقات</h4>
+                      <p className="text-[10px] font-bold text-slate-500">اضغط على أي عميل لتصفية القائمة عليه</p>
                     </div>
                   </div>
                   <span className="text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-200 px-2 py-1 rounded-full">أولوية التحصيل</span>
                 </div>
-                <div className="coll-top grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2.5">
+                <div className="coll-top grid grid-cols-2 lg:grid-cols-5 gap-2.5">
                   {topOverdueCustomers.map((customer, idx) => {
                     const debt = getCustomerDebt(customer);
-                    const isSelected = selectedCustomer?.id === customer.id;
                     return (
                       <button
                         key={customer.id}
                         type="button"
-                        onClick={() => setSelectedCustomerId(customer.id)}
-                        className={`text-right rounded-xl border p-3 transition group ${isSelected ? 'border-emerald-400 bg-emerald-50 shadow-sm ring-1 ring-emerald-200' : 'border-slate-200 bg-white hover:border-amber-300 hover:shadow-sm'}`}
+                        onClick={() => setSearch(customer.name)}
+                        className="text-right rounded-xl border border-slate-200 bg-white p-3 transition group hover:border-amber-300 hover:shadow-sm"
                       >
                         <div className="flex items-center gap-2 mb-2">
                           <img
@@ -830,7 +867,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                             className={`w-10 h-10 rounded-xl object-cover shrink-0 border shadow-xs ${idx === 0 ? 'border-amber-400 ring-2 ring-amber-200' : 'border-slate-200 bg-slate-50'}`}
                           />
                           <div className="min-w-0 flex-1">
-                            <div className="font-black text-xs text-[#0b2337] truncate group-hover:text-amber-800">{customer.name}</div>
+                            <div className="font-black text-xs text-[#0b2337] cr-wrap group-hover:text-amber-800">{customer.name}</div>
                             <div className="text-[10px] text-slate-500 font-mono truncate">{customer.code || '—'}</div>
                           </div>
                           {idx === 0 && <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full shrink-0">#1</span>}
@@ -856,11 +893,11 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                 <p className="mt-1 text-sm text-slate-600">جميع العملاء في حالة جيدة — استمر في المتابعة اليومية.</p>
               </div>
             ) : (
-              pagedOverdueCustomers.map((customer) => {
+              <div className="cr-list">
+              {pagedOverdueCustomers.map((customer) => {
                 const debt = getCustomerDebt(customer);
                 const amountValue = amountByCustomer[customer.id] ?? 0;
                 const noteValue = notesByCustomer[customer.id] ?? '';
-                const isSelected = selectedCustomer?.id === customer.id;
                 const returnStats =
                   returnsByCustomerKey.get(customer.id) ||
                   (customer.code ? returnsByCustomerKey.get(customer.code) : undefined) ||
@@ -872,135 +909,134 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                   Number(customer.lastCollectionAmount || 0)
                 );
 
+                const sectorTone = (customer.sector === 'electrical' || (!customer.sector && activeSector === 'electrical')) ? 'electrical' : 'home';
                 return (
                   <div
                     key={customer.id}
-                    className={`coll-card rounded-2xl border p-4 sm:p-5 transition-all ${
-                      isSelected
-                        ? 'border-emerald-600 bg-emerald-50/40 shadow-md ring-1 ring-emerald-300'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-                    }`}
+                    data-sector={sectorTone}
+                    className="cr-card"
                   >
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch xl:justify-between">
-                      <div className="min-w-0 flex-1 flex flex-col justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <img
-                            src={resolveCustomerStoreAvatar(customer)}
-                            alt={customer.name}
-                            referrerPolicy="no-referrer"
-                            onError={handleStoreAvatarError}
-                            className="h-14 w-14 rounded-2xl object-cover border-2 border-slate-200 bg-slate-100 shadow-xs shrink-0"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <h4 className="text-base sm:text-lg font-black text-slate-950 truncate">{customer.name}</h4>
-                              <span className="shrink-0 text-xs font-black text-rose-700">مستحق للتحصيل</span>
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-bold text-slate-700">
-                              <span className="font-mono font-black text-slate-900">{customer.code || '—'}</span>
-                              <span aria-hidden="true" className="text-slate-400">·</span>
-                              <span>{customer.branchName || 'فرع رئيسي'}</span>
-                              <span aria-hidden="true" className="text-slate-400">·</span>
-                              <span>{customer.salesRepName || customer.repName || 'مندوب غير محدد'}</span>
-                            </div>
-                            {customer.phone && (
-                              <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-800">
-                                <a
-                                  href={`tel:${customer.phone}`}
-                                  className="inline-flex items-center gap-1 hover:text-blue-700 transition"
-                                >
-                                  <Phone className="h-3.5 w-3.5 text-slate-700" />
-                                  <span className="font-mono tabular-nums" dir="ltr">{customer.phone}</span>
-                                </a>
-                              </div>
-                            )}
-                          </div>
+                    {/* ===== هيدر الكارت: صورة + الاسم + الكود/الفرع/المندوب + شارة الاستحقاق ===== */}
+                    <div className="cr-card__head">
+                      <img
+                        src={resolveCustomerStoreAvatar(customer)}
+                        alt={customer.name}
+                        referrerPolicy="no-referrer"
+                        onError={handleStoreAvatarError}
+                        className="cr-card__avatar"
+                      />
+                      <div className="cr-card__id">
+                        <h4 className="cr-card__name cr-wrap">{customer.name}</h4>
+                        <div className="cr-card__meta">
+                          <span className="cr-card__code">{customer.code || '—'}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="cr-card__branch">{customer.branchName || 'فرع رئيسي'}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="cr-card__rep">{customer.salesRepName || customer.repName || 'مندوب غير محدد'}</span>
                         </div>
+                        {customer.phone && (
+                          <a href={`tel:${customer.phone}`} className="cr-card__phone">
+                            <Phone className="h-3 w-3" />
+                            <span dir="ltr">{customer.phone}</span>
+                          </a>
+                        )}
+                      </div>
+                      <span className="cr-card__due">مستحق للتحصيل</span>
+                    </div>
 
-                        {/* قسم منسّق للتحصيل والمديونيات والمرتجعات واضح أثناء الحركة */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 rounded-xl border border-slate-200 bg-slate-50/90 divide-y sm:divide-y-0 sm:divide-x sm:divide-x-reverse divide-slate-200">
-                          <div className="px-3.5 py-2.5">
-                            <div className="text-xs font-extrabold text-rose-800">المديونية المستحقة</div>
-                            <div className="mt-0.5 text-base sm:text-lg font-black text-rose-700 tabular-nums">
-                              {formatCurrency(debt)}
-                            </div>
-                            <div className="text-[11px] font-bold text-slate-700 mt-0.5">
-                              الحد: {customer.creditLimit ? formatCurrency(customer.creditLimit) : 'غير محدد'}
-                            </div>
-                          </div>
-
-                          <div className="px-3.5 py-2.5">
-                            <div className="text-xs font-extrabold text-emerald-800">التحصيل المسجل</div>
-                            <div className="mt-0.5 text-base sm:text-lg font-black text-emerald-800 tabular-nums">
-                              {totalCollectedCustomer > 0 ? formatCurrency(totalCollectedCustomer) : '0 ج.م'}
-                            </div>
-                            <div className="text-[11px] font-bold text-slate-700 mt-0.5">
-                              {customer.lastCollectionDate ? `آخر تحصيل: ${customer.lastCollectionDate}` : 'لم يُسجّل تحصيل'}
-                            </div>
-                          </div>
-
-                          <div className="px-3.5 py-2.5">
-                            <div className="text-xs font-extrabold text-amber-900">المرتجعات</div>
-                            <div className={`mt-0.5 text-base sm:text-lg font-black tabular-nums ${returnStats.count > 0 ? 'text-amber-800' : 'text-slate-800'}`}>
-                              {returnStats.value > 0 ? formatCurrency(returnStats.value) : `${returnStats.count} إذن`}
-                            </div>
-                            <div className="text-[11px] font-bold text-slate-700 mt-0.5">
-                              {returnStats.count > 0
-                                ? `${returnStats.count} إذن${returnStats.pending > 0 ? ` (${returnStats.pending} معلق)` : ''}`
-                                : 'لا توجد مرتجعات'}
-                            </div>
-                          </div>
-                        </div>
+                    <div className="cr-card__body">
+                      {/* ===== الإحصائيات التلاتة ===== */}
+                      <div className="cr-card__metrics">
+                        <KpiCard
+                          tone="debt"
+                          className="kpi-card--compact"
+                          label="المديونية المستحقة"
+                          value={<span className="tg-num">{formatCurrency(debt)}</span>}
+                          unit="ج.م"
+                          meta={`الحد: ${customer.creditLimit ? formatCurrency(customer.creditLimit) : 'غير محدد'}`}
+                          icon={<CreditCard />}
+                        />
+                        <KpiCard
+                          tone="collection"
+                          className="kpi-card--compact"
+                          label="التحصيل المسجل"
+                          value={<span className="tg-num">{formatCurrency(totalCollectedCustomer)}</span>}
+                          unit="ج.م"
+                          meta={
+                            customer.lastCollectionDate
+                              ? `آخر تحصيل: ${customer.lastCollectionDate}`
+                              : 'لم يُسجّل تحصيل'
+                          }
+                          icon={<Wallet />}
+                        />
+                        <KpiCard
+                          tone="warn"
+                          className="kpi-card--compact"
+                          label="المرتجعات"
+                          value={
+                            <span className="tg-num">
+                              {returnStats.value > 0 ? formatCurrency(returnStats.value) : returnStats.count}
+                            </span>
+                          }
+                          unit={returnStats.value > 0 ? 'ج.م' : 'إذن'}
+                          meta={
+                            returnStats.count > 0
+                              ? `${returnStats.count} إذن${returnStats.pending > 0 ? ` · ${returnStats.pending} معلق` : ''}`
+                              : 'لا توجد مرتجعات'
+                          }
+                          icon={<RotateCcw />}
+                        />
                       </div>
 
-                      <div className="w-full xl:w-[340px] shrink-0 rounded-2xl border border-emerald-300 bg-emerald-50/20 p-4 sm:p-5 flex flex-col justify-between border-emerald-200 shadow-sm">
-                        <div className="grid gap-2.5">
-                          <label className="text-sm font-black text-rose-800">
-                            مبلغ التحصيل
-                            <div className="mt-1.5 flex gap-2">
-                              <input
-                                type="number"
-                                min={0}
-                                value={amountValue}
-                                onChange={(event) => setAmountByCustomer((prev) => ({
-                                  ...prev,
-                                  [customer.id]: Math.max(0, Number(event.target.value || 0)),
-                                }))}
-                                className="min-h-[44px] w-full rounded-xl border border-emerald-300 bg-white px-3 py-2 text-base font-black text-slate-950 tabular-nums outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setAmountByCustomer((prev) => ({ ...prev, [customer.id]: Math.max(debt, 0) }))}
-                                className="min-h-[44px] shrink-0 rounded-xl border border-emerald-400 bg-emerald-50 px-3.5 text-xs font-black text-emerald-900 hover:bg-emerald-100 cursor-pointer"
-                                title="تعبئة كامل المبلغ المستحق"
-                              >
-                                كامل
-                              </button>
-                            </div>
-                          </label>
-
-                          <label className="text-sm font-black text-rose-800">
-                            ملاحظة التحصيل
+                      {/* ===== فورم التحصيل ===== */}
+                      <div className="cr-pay">
+                        <label className="cr-pay__label">
+                          مبلغ التحصيل
+                          <div className="cr-pay__row">
                             <input
-                              value={noteValue}
-                              onChange={(event) => setNotesByCustomer((prev) => ({
+                              type="number"
+                              min={0}
+                              inputMode="numeric"
+                              value={amountValue}
+                              onChange={(event) => setAmountByCustomer((prev) => ({
                                 ...prev,
-                                [customer.id]: event.target.value,
+                                [customer.id]: Math.max(0, Number(event.target.value || 0)),
                               }))}
-                              className="mt-1.5 min-h-[44px] w-full rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs sm:text-sm font-bold text-slate-950 placeholder:text-slate-500 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                              placeholder="أدخل ملاحظة التحصيل (اختياري)..."
+                              className="cr-pay__input"
+                              placeholder="0"
                             />
-                          </label>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => setAmountByCustomer((prev) => ({ ...prev, [customer.id]: Math.max(debt, 0) }))}
+                              className="cr-pay__full"
+                              title="تعبئة كامل المبلغ المستحق"
+                            >
+                              كامل
+                            </button>
+                          </div>
+                        </label>
 
-                        <div className="mt-3 flex gap-2">
+                        <label className="cr-pay__label">
+                          ملاحظة التحصيل
+                          <input
+                            value={noteValue}
+                            onChange={(event) => setNotesByCustomer((prev) => ({
+                              ...prev,
+                              [customer.id]: event.target.value,
+                            }))}
+                            className="cr-pay__input cr-pay__input--note"
+                            placeholder="أدخل ملاحظة التحصيل (اختياري)..."
+                          />
+                        </label>
+
+                        <div className="cr-pay__actions">
                           {canTransferToLegal && (
                             <button
                               type="button"
                               onClick={() => setLegalTransferCustomer(customer)}
-                              className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs sm:text-sm font-black text-slate-800 hover:bg-slate-50 transition cursor-pointer"
+                              className="cr-btn cr-btn--ghost"
                             >
-                              <Scale className="h-4 w-4 text-[#1E3A8A]" />
+                              <Scale className="h-4 w-4" />
                               تحويل للشؤون القانونية
                             </button>
                           )}
@@ -1008,28 +1044,22 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                             type="button"
                             onClick={() => openConfirmModal(customer)}
                             disabled={amountValue <= 0}
-                            className="min-h-[44px] inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3 py-2.5 text-xs sm:text-sm font-black text-white shadow-xs transition cursor-pointer"
+                            className="cr-btn cr-btn--submit"
                           >
                             <CheckCircle2 className="h-4 w-4" />
                             تسجيل تحصيل
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedCustomerId(customer.id)}
-                            className={`min-h-[44px] rounded-xl border px-3.5 py-2.5 text-xs font-black transition cursor-pointer ${
-                              isSelected
-                                ? 'border-emerald-600 bg-emerald-100 text-emerald-950'
-                                : 'border-slate-300 bg-white text-slate-900 hover:bg-slate-100'
-                            }`}
-                          >
-                            تفاصيل
-                          </button>
                         </div>
+
+                        {amountValue <= 0 && (
+                          <p className="cr-pay__hint">أدخل مبلغاً أكبر من صفر لتسجيل التحصيل</p>
+                        )}
                       </div>
                     </div>
                   </div>
                 );
-              })
+              })}
+              </div>
             )}
 
             {visibleCustomersCount < overdueCustomers.length && (
@@ -1047,66 +1077,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* تفاصيل العميل المختار */}
-        <div className="space-y-4 xl:sticky xl:top-4">
-          <div className="tg-card p-4 sm:p-5 border border-[var(--tg-line)]">
-            <div className="mb-4">
-              <h3 className="tg-card__title flex items-center gap-2 text-[#0b2337]">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-100 text-sky-700"><ShieldCheck className="h-4 w-4" /></span>
-                تفاصيل العميل المختار
-              </h3>
-            </div>
 
-            {selectedCustomer ? (
-              <div className="space-y-3">
-                <div className="rounded-2xl bg-gradient-to-l from-slate-50 to-white border border-slate-200 p-3.5 flex items-center gap-3">
-                  <img
-                    src={resolveCustomerStoreAvatar(selectedCustomer)}
-                    alt={selectedCustomer.name}
-                    referrerPolicy="no-referrer"
-                    onError={handleStoreAvatarError}
-                    className="h-12 w-12 rounded-2xl object-cover border border-slate-200 bg-white shadow-xs shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">العميل</div>
-                    <div className="mt-0.5 text-base font-black text-[#0b2337] truncate">{selectedCustomer.name}</div>
-                    <div className="mt-0.5 text-xs font-medium text-slate-600 truncate">{selectedCustomer.code} • {selectedCustomer.phone || 'لا يوجد هاتف'}</div>
-                  </div>
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-rose-700/80">المتبقي</div>
-                    <div className="mt-1 text-lg font-black text-rose-700 tabular-nums">{formatCurrency(getCustomerDebt(selectedCustomer))}</div>
-                  </div>
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-800/80">الحالة</div>
-                    <div className="mt-1 text-lg font-black text-amber-800">متأخر</div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-3.5 text-sm">
-                  <div className="mb-2 font-black text-slate-800">معلومات العميل</div>
-                  <div className="space-y-1.5 text-xs font-medium text-slate-600">
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">الفرع</span><span className="font-bold text-slate-800">{selectedCustomer.branchName || 'غير محدد'}</span></div>
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">المندوب</span><span className="font-bold text-slate-800">{selectedCustomer.salesRepName || selectedCustomer.repName || 'غير محدد'}</span></div>
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">العنوان</span><span className="font-bold text-slate-800 text-left">{selectedCustomer.address || selectedCustomer.region || 'غير محدد'}</span></div>
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">آخر تحصيل</span><span className="font-bold text-slate-800">{selectedCustomer.lastCollectionDate || 'لا يوجد'}</span></div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5">
-                  <div className="flex items-center gap-2 text-sm font-black text-emerald-900"><Sparkles className="h-4 w-4" /> تذكير</div>
-                  <p className="mt-1 text-xs leading-6 text-emerald-900/80 font-medium">سجّل التحصيل فور استلامه لتحديث رصيد العميل وإظهار إنجازك في تقارير اليوم.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-medium text-slate-500">
-                لا يوجد عميل محدد حاليًا
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* جدول التحصيل اليومي */}
@@ -1145,14 +1116,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                     <td className="py-3 pr-4 pl-2">
                       <div className="flex items-center gap-3">
                         <img
-                          src="/assets/rep-avatar-v2.jpg"
+                          src={repAvatarUrl}
                           alt={row.repName}
                           referrerPolicy="no-referrer"
                           onError={(e) => {
                             const img = e.currentTarget;
                             if (!img.dataset.fallback) {
                               img.dataset.fallback = '1';
-                              img.src = '/assets/rep-avatar-v2.jpg';
+                              img.src = repAvatarUrl;
                             }
                           }}
                           className="h-9 w-9 rounded-xl object-cover object-top border border-slate-200 shrink-0"
@@ -1178,7 +1149,8 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* بروفايلات المناديب */}
+      {/* بروفايلات المناديب — مخفي بقرار الإدارة */}
+      {false && (
       <div className="tg-card p-4 sm:p-5 border border-[var(--tg-line)]">
         <div className="mb-4">
           <h3 className="tg-card__title flex items-center gap-2 text-[#0b2337]">
@@ -1196,14 +1168,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
             >
               <div className="flex items-center gap-3">
                 <img
-                  src="/assets/rep-avatar-v2.jpg"
+                  src={repAvatarUrl}
                   alt={rep.repName}
                   referrerPolicy="no-referrer"
                   onError={(e) => {
                     const img = e.currentTarget;
                     if (!img.dataset.fallback) {
                       img.dataset.fallback = '1';
-                      img.src = '/assets/rep-avatar-v2.jpg';
+                      img.src = repAvatarUrl;
                     }
                   }}
                   className={`h-12 w-12 rounded-2xl object-cover object-top border-2 shadow-sm shrink-0 ${
@@ -1245,6 +1217,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
           ))}
         </div>
       </div>
+      )}
 
       {/* تأكيد التحصيل */}
       {confirmCustomer && (

@@ -1,6 +1,6 @@
+import InternalNotificationCenter from './InternalNotificationCenter';
 import {
   BarChart3,
-  Bell,
   BookOpen,
   Boxes,
   Building,
@@ -49,12 +49,14 @@ import {
   Sun,
   UploadCloud
 } from 'lucide-react';
+import '../styles/navbar-menu-polish.css';
 import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useCart } from '../context/cartContext';
 import { useTheme } from '../context/themeContext';
 import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
+import repAvatarUrl from '../assets/images/rep_avatar_1794555996338.jpg';
 
 /* الشاشات دي بتتفتح من أيقونات نادرة الاستخدام، وكانت كلها جوه الحزمة الأولى
    (~600KB زيادة على أول تحميل). بقت chunks منفصلة بتتنزّل أول مرة تتفتح فقط. */
@@ -86,7 +88,7 @@ interface NavbarProps {
   onGlobalNavigate?: (tab: string, query?: string) => void;
 }
 
-const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar-v2.jpg';
+const DEFAULT_EXECUTIVE_AVATAR = repAvatarUrl;
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
@@ -94,8 +96,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCart,
   isSidebarCollapsed = false,
   onToggleSidebar,
-  notificationCount = 0,
-  onOpenNotificationCenter,
   onGlobalNavigate
 }) => {
   const {
@@ -206,29 +206,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   }).length;
   
   const userVisibleInvoices = useMemo(() => getVisibleInvoices(), [getVisibleInvoices]);
-  const pendingOrdersCount = useMemo(
-    () =>
-      userVisibleInvoices.filter((i) => {
-        const status = i.status || '';
-        const lower = status.toLowerCase();
-        // مطابقة الحالة الرئيسية
-        if (
-          status === 'قيد مراجعة المشرف' ||
-          status === 'معلقة بانتظار اعتماد الفرع' ||
-          status === 'قيد المراجعة'
-        )
-          return true;
-        // مطابقةcase-insensitive fallback
-        if (
-          lower.includes('مراجعة') ||
-          lower.includes('معتم') ||
-          lower.includes('معلقة')
-        )
-          return true;
-        return false;
-      }).length,
-    [userVisibleInvoices]
-  );
+  // عدّاد "أوامر البيع": اللي بانتظار اعتماد المستخدم الحالي فقط.
+  // (كان بيعدّ أي حالة فيها "معتم"، يعني الفواتير المعتمدة كمان.)
+  const pendingOrdersCount = useMemo(() => {
+    const role = currentUser.role;
+    const supervisorStatuses = ['قيد مراجعة المشرف', 'معلقة بانتظار اعتماد الفرع', 'قيد المراجعة'];
+    const adminStatuses = ['في انتظار اعتماد الإدارة'];
+    let mine: string[] = [];
+    if (role === 'supervisor') mine = supervisorStatuses;
+    else if (role === 'branch_manager' || role === 'admin' || role === 'developer') mine = [...supervisorStatuses, ...adminStatuses];
+    else return 0;
+    return userVisibleInvoices.filter((i) => mine.includes(i.status || '')).length;
+  }, [userVisibleInvoices, currentUser.role]);
 
   const supervisorName = currentUser.supervisorId
     ? users.find((u) => u.id === currentUser.supervisorId)?.name
@@ -344,18 +333,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* بحث ذكي (حقل مرن مع الأيقونة داخل الحقل) */}
+          {activeTab === 'home' && (
           <div className="ds-search ds-vis-ge-lg flex-1 min-w-0 relative">
             <input
               type="text"
               placeholder="ابحث عن عميل، فاتورة، صنف، مرتجع..."
-              className="w-full px-3 py-2 pl-9 pr-4 rounded-xl border border-slate-200 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] text-slate-900 dark:text-white text-sm font-medium placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+              className="w-full px-3 py-2 pr-9 pl-4 rounded-xl border border-slate-200 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] text-slate-900 dark:text-white text-sm font-medium placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
               onFocus={() => setIsGlobalSearchOpen(true)}
               onClick={(e) => e.stopPropagation()}
               readOnly
               aria-label="بحث ذكي"
             />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 dark:text-slate-400" aria-hidden="true" />
           </div>
+          )}
 
           <div className="ds-topbar__spacer" />
 
@@ -420,7 +411,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer whitespace-nowrap ${
                     activeSectorFilter === 'home'
                       ? 'bg-[#102b4e] text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
+                      : 'bg-transparent text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
                   }`}
                 >
                   🏠 منزلي
@@ -431,7 +422,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer whitespace-nowrap ${
                     activeSectorFilter === 'electrical'
                       ? 'bg-amber-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
+                      : 'bg-transparent text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
                   }`}
                 >
                   ⚡ كهرباء
@@ -458,7 +449,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={toggleTheme}
-              className="ds-iconbtn ds-vis-never"
+              className="ds-iconbtn"
               title={isDark ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الليلي'}
               aria-label={isDark ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الليلي'}
               aria-pressed={isDark}
@@ -493,30 +484,38 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {showMoreMenu && (
-              <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl border border-slate-200 dark:border-[#26364D] bg-white dark:bg-[#0F1E36] shadow-xl z-50 py-2">
-                {/* مزامنة مركز الحالة */}
+              <div className="ds-moremenu absolute right-0 top-full mt-1.5 w-64 rounded-xl border border-slate-200 dark:border-[#26364D] bg-white dark:bg-[#0F1E36] shadow-xl z-50 py-2">
+                {/* مركز المزامنة — مش للمندوب (عنده شاشة المزامنة المعلّقة في القايمة الجانبية) */}
+                {currentUser.role !== 'sales_rep' && (
+                  <>
                 <button
                   type="button"
                   onClick={() => { setIsSyncCenterOpen(true); setShowMoreMenu(false); }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 bg-transparent border-0 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
                 >
                   <RefreshCw size={16} />
                   <span>مركز المزامنة</span>
                 </button>
                 <hr className="my-1 border-slate-100 dark:border-[#1E314E]" />
-                {/* حالة قاعدة البيانات */}
-                <button
+                  </>
+                )}
+                {/* حالة قاعدة البيانات — للإدارة والدعم فقط، مش للمندوب/المشرف */}
+                {!isFieldRole && (
+                  <>
+                                <button
                   type="button"
                   onClick={() => { setIsDbModalOpen(true); setShowMoreMenu(false); }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 bg-transparent border-0 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
                 >
                   <CloudLightning size={16} />
                   <span>قاعدة البيانات</span>
                 </button>
                 <hr className="my-1 border-slate-100 dark:border-[#1E314E]" />
+                  </>
+                )}
                 {/* قطاع (Admin/Dev) */}
                 {canManageSectorGate && (
-                  <>
+                  <div className="xl:hidden">
                     <div className="px-4 py-1 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">القطاع</div>
                     <button
                       type="button"
@@ -524,7 +523,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className={`flex w-full items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
                         activeSectorFilter === 'home'
                           ? 'bg-[#102b4e] text-white shadow-2xs'
-                          : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
+                          : 'bg-transparent text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
                       }`}
                     >
                       🏠 منزلي
@@ -535,17 +534,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className={`flex w-full items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
                         activeSectorFilter === 'electrical'
                           ? 'bg-amber-600 text-white shadow-2xs'
-                          : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
+                          : 'bg-transparent text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
                       }`}
                     >
                       ⚡ كهرباء
                     </button>
                     <hr className="my-1 border-slate-100 dark:border-[#1E314E]" />
-                  </>
+                  </div>
                 )}
                 {/* فرع (Admin/Dev) */}
                 {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
-                  <>
+                  <div className="xl:hidden">
                     <div className="px-4 py-1 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">الفرع</div>
                     <select
                       aria-label="تصفية الفرع"
@@ -559,22 +558,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       ))}
                     </select>
                     <hr className="my-1 border-slate-100 dark:border-[#1E314E]" />
-                  </>
+                  </div>
                 )}
-                {/* الوضع الليلي (سطح المكتب 1280px+ - في القائمة أكثر من ذلك) */}
-                <button
-                  type="button"
-                  onClick={() => { toggleTheme(); setShowMoreMenu(false); }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
-                >
-                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                  <span>{isDark ? 'الوضع الفاتح' : 'الوضع الليلي'}</span>
-                </button>
                 {/* الإعدادات (سطح المكتب 1280px+ - في القائمة أكثر من ذلك) */}
                 <button
                   type="button"
                   onClick={() => { setIsSettingsModalOpen(true); setShowMoreMenu(false); }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 bg-transparent border-0 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
                 >
                   <Settings size={16} />
                   <span>الإعدادات والخصوصية</span>
@@ -593,19 +583,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Search aria-hidden="true" />
             </button>
 
-            {/* الإشعارات */}
-            {onOpenNotificationCenter && (
-              <button
-                type="button"
-                onClick={onOpenNotificationCenter}
-                className="ds-iconbtn"
-                title={`الإشعارات (${notificationCount} غير مقروء)`}
-                aria-label="مركز الإشعارات"
-              >
-                <Bell aria-hidden="true" />
-                {notificationCount > 0 && <span className="ds-dot" />}
-              </button>
-            )}
+            {/* الإشعارات — مركز الإشعارات الفعلي (كان الجرس مش متوصّل) */}
+            <InternalNotificationCenter onNavigateToTab={(tab) => setActiveTab(tab)} />
 
             {/* الطلبية (أيقونة + رقم فقط علىdesktop، النص في ملف الشخصية) */}
             <button

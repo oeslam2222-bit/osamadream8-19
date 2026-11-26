@@ -331,22 +331,24 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     sector: 'home', // القطاع الافتراضي: منزلي
   });
 
+  // الحساب ده تقيل (بيفلتر كل العملاء بمطابقة أسماء) → بنأجّله عن الكتابة عشان الفورم ما يهنجش.
+  const deferredForm = useDeferredValue(formData);
   const matchingCustomerCount = useMemo(() => {
-    if (!showAddUserModal || !formData.name?.trim() || formData.role !== 'sales_rep') return 0;
+    if (!showAddUserModal || !deferredForm.name?.trim() || deferredForm.role !== 'sales_rep') return 0;
     const tempUser: User = {
       id: editingUser?.id || 'temp-id',
-      name: formData.name.trim(),
-      username: formData.username?.trim() || '',
-      email: formData.email || '',
-      phone: formData.phone || '',
-      branchName: formData.branchName || '',
-      role: formData.role || 'sales_rep',
-      sector: formData.sector || 'home',
+      name: deferredForm.name.trim(),
+      username: deferredForm.username?.trim() || '',
+      email: deferredForm.email || '',
+      phone: deferredForm.phone || '',
+      branchName: deferredForm.branchName || '',
+      role: deferredForm.role || 'sales_rep',
+      sector: deferredForm.sector || 'home',
       approvalStatus: 'active',
       isActive: true,
     };
     return customers.filter((c) => doesCustomerBelongToRep(c, tempUser)).length;
-  }, [showAddUserModal, formData.name, formData.username, formData.email, formData.phone, formData.branchName, formData.role, editingUser, customers]);
+  }, [showAddUserModal, deferredForm.name, deferredForm.username, deferredForm.email, deferredForm.phone, deferredForm.branchName, deferredForm.role, deferredForm.sector, editingUser, customers]);
 
   // Approval modal state
   const [approvingUser, setApprovingUser] = useState<User | null>(null);
@@ -407,7 +409,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     const map = new Map<string, number>();
     if (customers.length === 0 || users.length === 0) return map;
 
-    const repUsers = users.filter((u) => u.role === 'sales_rep');
+    // بنحسب عدد العملاء للمناديب الظاهرين في الصفحة بس (10 مثلًا) بدل كل المناديب — كان بيتعاد حسابه لكل المناديب مع كل حفظ.
+    const repUsers = visibleUsers.filter((u) => u.role === 'sales_rep');
     const idToRepId = new Map<string, string>();
     const normNameToRepId = new Map<string, string>();
 
@@ -448,7 +451,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     }
 
     return map;
-  }, [users, customers]);
+  }, [visibleUsers, users.length, customers]);
 
   // Real-time audit for duplicated accounts
   const duplicateCheck = useMemo(() => {
@@ -667,6 +670,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       ? 'جميع الفروع والمخزن المركزي (6 أكتوبر)'
       : (formData.branchName || currentUser?.branchName || 'فرع القاهرة');
 
+    // إعادة ربط العملاء بالمناديب عملية تقيلة (بتلف على كل العملاء وبتتزامن مع السيرفر) — بنشغّلها بس لو الحفظ يخص مندوب مبيعات وغيّر اسم/دخول/دور/فرع.
+    const needsRepRelink =
+      formData.role === 'sales_rep' &&
+      (!editingUser ||
+        editingUser.role !== 'sales_rep' ||
+        editingUser.name !== formData.name.trim() ||
+        editingUser.username !== cleanUsername ||
+        editingUser.branchName !== assignedBranch);
+
     if (editingUser) {
       updateUser({
         ...editingUser,
@@ -704,10 +716,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       setCreatedCredentials(`تم إنشاء المستخدم ${cleanEmail} — كلمة المرور المؤقتة: ${pass}. احفظها وأرسلها للموظف.`);
     }
 
-    // Immediately trigger rep linking
-    setTimeout(() => {
-      refreshCustomerRepLinks();
-    }, 100);
+    // ربط العملاء بالمندوب: بعد قفل النافذة بشوية (عشان الواجهة ما تتجمدش) وبشرط
+    if (needsRepRelink) {
+      setTimeout(() => {
+        refreshCustomerRepLinks();
+      }, 600);
+    }
 
     setShowAddUserModal(false);
     setNewUserPassword('');
@@ -1087,7 +1101,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     </div>
                   </div>
 
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${cfg.bg} ${cfg.border} ${cfg.text} flex items-center gap-1`}>
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border tm-rb tm-rb--${user.role} ${cfg.bg} ${cfg.border} ${cfg.text} flex items-center gap-1`}>
                     <RoleIcon className="w-3 h-3" />
                     <span>{cfg.label}</span>
                   </span>
@@ -1232,7 +1246,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
                     {/* Role Badge */}
                     <td className="p-3.5">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black border ${cfg.bg} ${cfg.border} ${cfg.text}`}>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black border tm-rb tm-rb--${user.role} ${cfg.bg} ${cfg.border} ${cfg.text}`}>
                         <RoleIcon className="w-3.5 h-3.5" />
                         <span>{cfg.label}</span>
                       </span>
@@ -1415,15 +1429,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         type="button"
                         key={rKey}
                         onClick={() => setFormData((prev) => ({ ...prev, role: rKey }))}
-                        className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
-                          isSelected
-                            ? 'border-[var(--app-navy)] bg-[var(--app-navy)] text-white shadow-md shadow-[inset_0_-3px_0_var(--app-accent)]'
-                            : 'border-[var(--app-line)] bg-white hover:border-slate-border text-slate-800'
-                        }`}
+                        aria-pressed={isSelected}
+                        className={`tm-pick tm-role--${rKey} ${isSelected ? 'is-on' : ''} p-3 rounded-2xl text-right transition-all flex flex-col justify-between cursor-pointer`}
                       >
                         <div className="flex items-center justify-between w-full mb-1">
-                          <RoleIcon className={`w-4 h-4 ${isSelected ? 'text-[var(--app-accent)]' : 'text-slate-500'}`} />
-                          {isSelected && <Check className="w-3.5 h-3.5 text-[var(--app-accent)]" />}
+                          <RoleIcon className="w-4 h-4" />
+                          {isSelected && <Check className="w-3.5 h-3.5" />}
                         </div>
                         <div className="font-black text-xs">{cfg.shortLabel}</div>
                       </button>
@@ -1431,8 +1442,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   })}
                 </div>
                 {/* Active Role Description */}
-                <div className="bg-slate-light p-2.5 rounded-xl border border-[var(--app-line)] text-slate-600 text-[11px] flex items-center gap-2">
-                  <span className="font-bold text-slate-900 shrink-0">مهام الصلاحية:</span>
+                <div className={`tm-pickdesc tm-role--${formData.role || 'sales_rep'} p-2.5 rounded-xl text-[11px] flex items-center gap-2`}>
+                  <span className="tm-pickdesc__t font-bold shrink-0">مهام الصلاحية:</span>
                   <span>{roleConfigs[formData.role || 'sales_rep']?.desc}</span>
                 </div>
               </div>

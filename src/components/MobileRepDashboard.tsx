@@ -41,6 +41,7 @@ import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import type { LucideIcon } from 'lucide-react';
 import type { Customer } from '../types';
+import repAvatarUrl from '../assets/images/rep_avatar_1794555996338.jpg';
 
 interface MobileRepDashboardProps {
   onNavigate: (tab: string) => void;
@@ -463,7 +464,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src="/assets/rep-avatar-v2.jpg"
+              src={repAvatarUrl}
               alt={currentUser?.name || 'المندوب'}
               className="w-12 h-12 rounded-2xl object-cover border-2 border-[var(--app-warn)] shadow-sm shrink-0"
             />

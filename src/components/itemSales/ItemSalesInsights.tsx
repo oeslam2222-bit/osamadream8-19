@@ -146,6 +146,15 @@ export const ItemSalesInsights: React.FC<ItemSalesInsightsProps> = ({
   useEffect(() => { setExpanded(null); setLimit(50); }, [tab, sector, branch, rep, monthFrom, monthTo, query, sortBy]);
   useEffect(() => { setBranch(''); setRep(''); }, [sector]);
 
+  // أول فتح: آخر شهر متاح بس (بدل كل الشهور) — أسرع بكتير. المستخدم يوسّع المدى من «من/إلى».
+  const [rangeInit, setRangeInit] = useState(false);
+  useEffect(() => {
+    if (rangeInit || availableMonths.length === 0) return;
+    const last = availableMonths[availableMonths.length - 1];
+    setMonthFrom(last);
+    setMonthTo(last);
+    setRangeInit(true);
+  }, [rangeInit, availableMonths]);
   const from = monthFrom || availableMonths[0] || 1;
   const to = monthTo || availableMonths[availableMonths.length - 1] || 12;
   const months = useMemo(() => availableMonths.filter((m) => m >= Math.min(from, to) && m <= Math.max(from, to)), [availableMonths, from, to]);

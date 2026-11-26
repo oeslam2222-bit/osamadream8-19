@@ -22,6 +22,7 @@ import type { Customer, TargetRecord, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { CustomerProfileDrawer } from './CustomerProfileDrawer';
 import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
+import repAvatarUrl from '../assets/images/rep_avatar_1794555996338.jpg';
 
 const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
@@ -1435,7 +1436,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               displayedReps.map((rep) => {
                 const salesPct = pctOf(rep.salesAchieved, rep.salesTarget);
                 const repUser = findRepUser(users, rep.repName);
-                const repAvatar = '/assets/rep-avatar-v2.jpg';
+                const repAvatar = repAvatarUrl;
                 return (
                   <div
                     key={rep.repKey}
@@ -1454,7 +1455,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                           const img = e.currentTarget;
                           if (!img.dataset.fallback) {
                             img.dataset.fallback = '1';
-                            img.src = '/assets/rep-avatar-v2.jpg';
+                            img.src = repAvatarUrl;
                           }
                         }}
                         className="rp-hd__av"
@@ -1560,14 +1561,14 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <img
-                    src="/assets/rep-avatar-v2.jpg"
+                    src={repAvatarUrl}
                     alt={selectedRep.repName}
                     referrerPolicy="no-referrer"
                     onError={(e) => {
                       const img = e.currentTarget;
                       if (!img.dataset.fallback) {
                         img.dataset.fallback = '1';
-                        img.src = '/assets/rep-avatar-v2.jpg';
+                        img.src = repAvatarUrl;
                       }
                     }}
                     className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover object-top border-2 border-white/40 bg-slate-800 shadow-md shrink-0"

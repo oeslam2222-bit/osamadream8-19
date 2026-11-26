@@ -13,13 +13,14 @@ import { formatCompactCurrency, formatCurrency } from '../services/invoiceServic
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { Customer, CustomerVisit, Invoice, TargetRecord } from '../types';
 import { IconBadge } from './ui/IconBadge';
-const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar-v2.jpg';
+const DEFAULT_EXECUTIVE_AVATAR = repAvatarUrl;
 import { LiveClock } from './LiveClock';
 import { KPICard } from './KPICard';
 import { MiniGauge } from './ui/PerformanceGauge';
 import { TargetGaugeSummary } from './home/TargetGaugeSummary';
 import { useSnapshotCache } from '../hooks/useSnapshotCache';
 import { formatSnapshotTime } from '../services/dashboardSnapshot';
+import repAvatarUrl from '../assets/images/rep_avatar_1794555996338.jpg';
 
 interface DashboardHomeProps {
   onNavigateToTab: (tab: string) => void;

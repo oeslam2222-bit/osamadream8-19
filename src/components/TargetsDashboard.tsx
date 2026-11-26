@@ -16,6 +16,7 @@ import { normalizeArabicText } from '../services/arabicMatchingService';
 import type { TargetQuarter, TargetRecord, User } from '../types';
 import { MiniGauge, PerformanceGauge, gaugeTone } from './ui/PerformanceGauge';
 import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
+import repAvatarUrl from '../assets/images/rep_avatar_1794555996338.jpg';
 
 function repMatchKey(raw?: string | null): string {
   return normalizeArabicText(String(raw || '').trim())
@@ -327,7 +328,7 @@ export const TargetsDashboard: React.FC = () => {
         rep,
         ...agg,
         records,
-        avatar: '/assets/rep-avatar-v2.jpg',
+        avatar: repAvatarUrl,
         branch,
         supervisor,
         sector,
@@ -370,7 +371,7 @@ export const TargetsDashboard: React.FC = () => {
 
     return {
       repName: inPeriod?.rep || openRepName,
-      avatar: '/assets/rep-avatar-v2.jpg',
+      avatar: repAvatarUrl,
       branch: inPeriod?.branch || user?.branchName || 'غير محدد',
       supervisor: inPeriod?.supervisor || user?.supervisorName || 'بدون مشرف',
       sector: inPeriod?.sector || user?.sector,
@@ -821,7 +822,7 @@ export const TargetsDashboard: React.FC = () => {
                           const img = e.currentTarget;
                           if (!img.dataset.fallback) {
                             img.dataset.fallback = '1';
-                            img.src = '/assets/rep-avatar-v2.jpg';
+                            img.src = repAvatarUrl;
                           }
                         }}
                         className="w-11 h-11 rounded-2xl object-cover object-top border-2 border-blue-200 shrink-0 shadow-xs"
@@ -913,7 +914,7 @@ export const TargetsDashboard: React.FC = () => {
                               const img = e.currentTarget;
                               if (!img.dataset.fallback) {
                                 img.dataset.fallback = '1';
-                                img.src = '/assets/rep-avatar-v2.jpg';
+                                img.src = repAvatarUrl;
                               }
                             }}
                             className="w-8 h-8 rounded-xl object-cover object-top border border-slate-200 shrink-0"
@@ -983,7 +984,7 @@ export const TargetsDashboard: React.FC = () => {
                       const img = e.currentTarget;
                       if (!img.dataset.fallback) {
                         img.dataset.fallback = '1';
-                        img.src = '/assets/rep-avatar-v2.jpg';
+                        img.src = repAvatarUrl;
                       }
                     }}
                     className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover object-top border-2 border-white/40 bg-slate-800 shadow-md shrink-0"

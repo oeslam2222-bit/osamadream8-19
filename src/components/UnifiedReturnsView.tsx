@@ -789,7 +789,7 @@ export const UnifiedReturnsView: React.FC = () => {
           </p>
         </div>
       ) : (
-        <div className="ret-list space-y-3.5">
+        <div className="ret-list rt-grid">
           {filteredReturns.slice(0, visibleReturnsCount).map((visit) => {
             const customer =
               (visit.customerId ? customerIndex.byId.get(visit.customerId) : undefined) ||

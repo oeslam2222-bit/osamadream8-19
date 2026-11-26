@@ -60,6 +60,125 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
+export interface CustomerCardMetrics {
+  balance: number;
+  overdue: number;
+  totalCollections: number;
+  totalReturns: number;
+  returnsCount: number;
+  pendingReturns: number;
+}
+
+interface CustomerCardHeadProps {
+  customer: any;
+  sector: 'home' | 'electrical' | 'default';
+  avatarUrl: string;
+  photosCount: number;
+  metrics: CustomerCardMetrics;
+  compact?: boolean;
+}
+
+/** كارت العميل v3 — هيدر ملوّن كامل حسب القطاع + الكروت التلاتة تحته */
+export const CustomerCardHead: React.FC<CustomerCardHeadProps> = ({
+  customer,
+  sector,
+  avatarUrl,
+  photosCount,
+  metrics,
+  compact = false,
+}) => {
+  const sectorLabel = sector === 'home' ? 'منزلي' : sector === 'electrical' ? 'كهربائي' : 'عام';
+  const repName = customer?.repName || customer?.salesRepName || '';
+  const phone = customer?.phone && customer.phone !== '—' ? customer.phone : '';
+
+  return (
+    <div className="cc" data-sector={sector}>
+      <header className="cc-head">
+        <div className="cc-head__row">
+          <div className="cc-avatar">
+            <img
+              src={avatarUrl}
+              alt={customer?.name || ''}
+              referrerPolicy="no-referrer"
+              className="cc-avatar__img"
+              onError={(e) => {
+                const img = e.currentTarget;
+                if (!img.dataset.fallback) {
+                  img.dataset.fallback = '1';
+                  img.src = customerMerchantAvatar;
+                }
+              }}
+            />
+            {photosCount > 1 && <span className="cc-avatar__count">+{photosCount - 1}</span>}
+          </div>
+
+          <div className="cc-head__body">
+            <h2 className="cc-name" title={customer?.name || ''}>{customer?.name || 'عميل'}</h2>
+            <div className="cc-meta">
+              <span className="cc-chip">{sectorLabel}</span>
+              <span className="cc-code">{customer?.code || '—'}</span>
+              <span aria-hidden="true">•</span>
+              <span className="cc-branch">{customer?.branchName || customer?.branch || '—'}</span>
+            </div>
+            {(repName || phone) && (
+              <div className="cc-rep">
+                {repName && (
+                  <span className="cc-rep__item">
+                    <Users size={11} />
+                    {repName}
+                  </span>
+                )}
+                {phone && (
+                  <a href={`tel:${phone}`} className="cc-rep__item cc-rep__phone">
+                    <Phone size={11} />
+                    {phone}
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {!compact && (
+        <div className="cc-metrics">
+          <div className="cc-metric">
+            <span className="cc-metric__icon"><Wallet size={15} /></span>
+            <span className="cc-metric__text">
+              <span className="cc-metric__label">المديونية</span>
+              <span className="cc-metric__desc">المستحق الحالي على العميل</span>
+              {metrics.overdue > 0 && <span className="cc-metric__flag">متأخر</span>}
+            </span>
+            <span className="cc-metric__value">{fmt(metrics.balance)} <em>ج.م</em></span>
+          </div>
+
+          <div className="cc-metric cc-metric--collection">
+            <span className="cc-metric__icon"><CreditCard size={15} /></span>
+            <span className="cc-metric__text">
+              <span className="cc-metric__label">التحصيل</span>
+              <span className="cc-metric__desc">إجمالي المحصّل من العميل</span>
+            </span>
+            <span className="cc-metric__value">{fmt(metrics.totalCollections)} <em>ج.م</em></span>
+          </div>
+
+          <div className="cc-metric cc-metric--returns">
+            <span className="cc-metric__icon"><RotateCcw size={15} /></span>
+            <span className="cc-metric__text">
+              <span className="cc-metric__label">المرتجعات</span>
+              <span className="cc-metric__desc">
+                {metrics.returnsCount > 0
+                  ? `${metrics.returnsCount} إذن${metrics.pendingReturns > 0 ? ` · ${metrics.pendingReturns} قيد المتابعة` : ''}`
+                  : 'لا توجد مرتجعات'}
+              </span>
+            </span>
+            <span className="cc-metric__value">{fmt(metrics.totalReturns)} <em>ج.م</em></span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 type TabKey = 'overview' | 'invoices' | 'item-sales' | 'months' | 'visits' | 'gps' | 'photos';
 
 export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
@@ -497,108 +616,30 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
       />
 
       <div className="tg-cp relative z-10 w-full max-w-none sm:max-w-2xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col bg-white dark:bg-[#0f172a] rounded-none sm:rounded-[28px] border-0 sm:border border-slate-200 dark:border-slate-800 shadow-[0_25px_70px_rgba(0,0,0,0.55)] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        {/* ====== هيدر بطاقة العميل ====== */}
-        <div className="tg-cp__head relative z-10 p-3 sm:p-4">
+        {/* ====== هيدر بطاقة العميل + الكروت التلاتة ====== */}
+        <div className="relative z-10 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3 left-3 w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+            className="cc-close"
             aria-label="إغلاق"
           >
             <X size={16} />
           </button>
-
-          <div className="flex items-start gap-3">
-            <div className="relative shrink-0">
-              <div className={`tg-cp__avatar tg-cp__avatar--${avatarTone} overflow-hidden`}>
-                <img
-                  src={photos[0] ? optimizeImageUrl(photos[0], 200, true) : customerMerchantAvatar}
-                  alt={customer.name}
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    const img = e.currentTarget;
-                    if (!img.dataset.fallback) {
-                      img.dataset.fallback = '1';
-                      img.src = customerMerchantAvatar;
-                    }
-                  }}
-                  className="w-full h-full object-cover object-top rounded-2xl"
-                />
-              </div>
-              {photosCount > 1 && <span className="tg-cp__photos">+{photosCount - 1}</span>}
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-
-                <span className={`tg-cp__badge ${
-                  sector === 'home' ? 'tg-cp__badge--blue' : sector === 'electrical' ? 'tg-cp__badge--violet' : ''
-                }`}>
-                  {sector === 'home' ? 'منزلي' : sector === 'electrical' ? 'كهربائي' : 'عام'}
-                </span>
-
-                <span className={`tg-cp__badge ${exceeded ? 'tg-cp__badge--risk' : balance > 0 ? 'tg-cp__badge--warn' : 'tg-cp__badge--ok'}`}>
-                  {exceeded ? 'تجاوز حد الائتمان' : balance > 0 ? 'عليه مستحق' : 'خالص'}
-                </span>
-
-                {customer.latitude && (
-                  <span className="tg-cp__badge tg-cp__badge--ok inline-flex items-center gap-1">
-                    <Check size={10} />
-                    GPS مثبت
-                  </span>
-                )}
-              </div>
-              <h2 className="tg-cp__name truncate text-lg sm:text-xl text-white font-black">{customer.name}</h2>
-              <div className="tg-cp__meta text-blue-100/90 text-xs font-bold">
-                <span className="font-mono bg-white/10 px-1.5 py-0.5 rounded text-[10px]">{customer.code || '—'}</span>
-                <span>•</span>
-                <span>{customer.branchName || customer.branch || '—'}</span>
-                {(customer.repName || customer.salesRepName) && (
-                  <>
-                    <span>•</span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/10 text-blue-100">
-                      <Users size={10} />
-                      {customer.repName || customer.salesRepName}
-                    </span>
-                  </>
-                )}
-                {customer.phone && customer.phone !== '—' && (
-                  <>
-                    <span>•</span>
-                    <a
-                      href={`tel:${customer.phone}`}
-                      className="inline-flex items-center gap-1 text-blue-200 hover:text-white underline-offset-2 hover:underline"
-                    >
-                      <Phone size={11} />
-                      {customer.phone}
-                    </a>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* شريط الإحصائيات المالية المباشرة */}
-          <div className="tg-cp__stats grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 mt-2.5 sm:mt-3.5">
-            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5">
-              <div className="tg-cp__stat-label text-blue-200 text-[9px] sm:text-[10px]">المديونية الحالية</div>
-              <div className="tg-cp__stat-value text-white font-black text-xs sm:text-sm">{fmt(balance)} ج.م</div>
-            </div>
-            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5">
-              <div className="tg-cp__stat-label text-blue-200 text-[9px] sm:text-[10px]">المتأخرات</div>
-              <div className="tg-cp__stat-value font-black text-xs sm:text-sm" style={{ color: overdue > 0 ? '#fecdd3' : '#a7f3d0' }}>
-                {fmt(overdue)} ج.م
-              </div>
-            </div>
-            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5">
-              <div className="tg-cp__stat-label text-blue-200 text-[9px] sm:text-[10px]">إجمالي المبيعات</div>
-              <div className="tg-cp__stat-value font-black text-xs sm:text-sm" style={{ color: '#bfdbfe' }}>{fmt(totalSales)} ج.م</div>
-            </div>
-            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5">
-              <div className="tg-cp__stat-label text-blue-200 text-[9px] sm:text-[10px]">إجمالي التحصيل</div>
-              <div className="tg-cp__stat-value font-black text-xs sm:text-sm" style={{ color: '#a7f3d0' }}>{fmt(totalColl)} ج.م</div>
-            </div>
-          </div>
+          <CustomerCardHead
+            customer={customer}
+            sector={avatarTone}
+            avatarUrl={photos[0] ? optimizeImageUrl(photos[0], 200, true) : customerMerchantAvatar}
+            photosCount={photosCount}
+            metrics={{
+              balance,
+              overdue,
+              totalCollections: totalColl,
+              totalReturns: totalReturnsValue,
+              returnsCount: customerReturns.length,
+              pendingReturns: pendingReturnsCount,
+            }}
+          />
         </div>
 
         {/* ====== التبويبات ====== */}
@@ -652,46 +693,46 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setTab('months')}
-                  className="tg-card p-3 text-right hover:border-blue-300 hover:bg-blue-50/40 transition group"
+                  className="qa-card qa-card--sales group"
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                  <div className="qa-card__head">
+                    <span className="qa-card__icon">
                       <TrendingUp size={15} />
                     </span>
-                    <ChevronRight size={14} className="text-slate-400 group-hover:text-blue-600 rotate-180" />
+                    <ChevronRight size={14} className="qa-card__chev rotate-180" />
                   </div>
-                  <div className="text-xs font-black text-[var(--app-text)]">التفاصيل المالية الشهرية</div>
-                  <div className="text-[10px] font-bold text-slate-500 mt-0.5">مبيعات وتحصيلات حسب الشهر</div>
+                  <div className="qa-card__title">التفاصيل المالية الشهرية</div>
+                  <div className="qa-card__sub">مبيعات وتحصيلات حسب الشهر</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setTab('visits')}
-                  className="tg-card p-3 text-right hover:border-emerald-300 hover:bg-emerald-50/40 transition group"
+                  className="qa-card qa-card--visits group"
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <div className="qa-card__head">
+                    <span className="qa-card__icon">
                       <CalendarCheck size={15} />
                     </span>
-                    <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5">{visits.length}</span>
+                    <span className="qa-card__count">{visits.length}</span>
                   </div>
-                  <div className="text-xs font-black text-[var(--app-text)]">سجل الزيارات</div>
-                  <div className="text-[10px] font-bold text-slate-500 mt-0.5">كل الزيارات الميدانية للعميل</div>
+                  <div className="qa-card__title">سجل الزيارات</div>
+                  <div className="qa-card__sub">كل الزيارات الميدانية للعميل</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setTab('photos')}
-                  className="tg-card p-3 text-right hover:border-violet-300 hover:bg-violet-50/40 transition group"
+                  className="qa-card qa-card--photos group"
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="w-8 h-8 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                  <div className="qa-card__head">
+                    <span className="qa-card__icon">
                       <ImageIcon size={15} />
                     </span>
-                    <span className="text-[10px] font-black bg-violet-100 text-violet-700 rounded-full px-2 py-0.5">{photosCount}/{MAX_PHOTOS}</span>
+                    <span className="qa-card__count">{photosCount}/{MAX_PHOTOS}</span>
                   </div>
-                  <div className="text-xs font-black text-[var(--app-text)]">صور المحل</div>
-                  <div className="text-[10px] font-bold text-slate-500 mt-0.5">توثيق وعرض صور المحل</div>
+                  <div className="qa-card__title">صور المحل</div>
+                  <div className="qa-card__sub">توثيق وعرض صور المحل</div>
                 </button>
               </div>
 

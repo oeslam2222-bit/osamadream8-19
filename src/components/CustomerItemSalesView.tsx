@@ -316,9 +316,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
     try {
       // 1. تحميل فوري من الكاش المحلي (IndexedDB) بدون أي انتظار للشبكة
+      // الإدارة في وضع «الأرقام النهائية»: مبنقراش مخزن الحركات الخام خالص (قراءته + ضغطه كانوا بيجمّدوا الصفحة).
+      const wantRawStores = !(isSummaryRole && summaryOnlyMode && !detailedRequestedRef.current);
       const [compactCached, savedFull, cachedAgg] = await Promise.all([
-        getScopedCompactItemSalesCache(compactCacheKey),
-        getSavedCustomerItemSales(),
+        wantRawStores ? getScopedCompactItemSalesCache(compactCacheKey) : Promise.resolve(null),
+        wantRawStores ? getSavedCustomerItemSales() : Promise.resolve([] as CustomerItemSaleRecord[]),
         isSummaryRole && itemSalesSector !== 'none'
           ? getCachedItemSalesAggregates({ sector: itemSalesSector })
           : Promise.resolve([]),
@@ -345,7 +347,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
       // الإدارة: لو فيه ملخص خفيف، مانحمّلش الحركات الخام في الذاكرة (سبب التهنيج)
       // إلا لو المستخدم فتح «حركات البيع التفصيلية» بنفسه.
-      const skipRawForSummary = isSummaryRole && cachedAgg.length > 0 && !detailedRequestedRef.current;
+      // الإدارة في وضع «الأرقام النهائية»: مبنحمّلش أي حركات خام (حتى لو الكاش المحلي فاضي/ممتلي) — الإجماليات بس.
+      const skipRawForSummary = isSummaryRole && !detailedRequestedRef.current && (cachedAgg.length > 0 || summaryOnlyMode);
       if (skipRawForSummary) {
         // الملخص اتعرض فوق — كفاية
       } else if (compactCached && compactCached.records.length > 0) {
@@ -389,7 +392,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
       // 2. مسار الإدارة والمطور والدعم الفني: جلب ملخص الأرقام النهائية الخفيف فقط (20-80KB)
       //    بدلاً من تنزيل 100 ألف+ صف خام!
-      if (isSummaryRole && !includeCustomerSummary && localBackup.length === 0) {
+      if (isSummaryRole && !includeCustomerSummary && (localBackup.length === 0 || !detailedRequestedRef.current)) {
         const targetSector: ItemSalesSector =
           itemSalesSector === 'electrical' ? 'electrical' : 'home';
         const aggRes = await fetchItemSalesAggregates({ sector: targetSector });

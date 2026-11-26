@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import '../styles/permissions-polish.css';
 import {
   ALL_AVAILABLE_TABS,
   DEFAULT_ROLE_TABS,
@@ -52,6 +53,15 @@ const TAB_GROUPS: { title: string; ids: string[] }[] = [
   { title: 'المخزون والتقارير والبيانات', ids: ['inventory', 'dashboard', 'excel', 'product_sales'] },
   { title: 'الإدارة والصلاحيات', ids: ['users', 'permissions', 'legal_advisor'] },
 ];
+
+/** لون كل مجموعة شاشات */
+const GROUP_TONES: Record<string, string> = {
+  'الرئيسية والكتالوج': 'blue',
+  'العملاء والمبيعات الميدانية': 'teal',
+  'الطلبات والفواتير والمرتجعات': 'amber',
+  'المخزون والتقارير والبيانات': 'violet',
+  'الإدارة والصلاحيات': 'rose',
+};
 
 const uniq = <T,>(arr: T[]) => Array.from(new Set(arr));
 
@@ -192,7 +202,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
     <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" dir="rtl" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-[var(--app-card)] rounded-3xl shadow-2xl pm-modal w-full max-w-full sm:max-w-[min(1200px,96vw)] h-[92dvh] overflow-hidden flex flex-col border border-[var(--app-border)]">
         {/* Header */}
-        <div className="px-5 sm:px-6 py-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-l from-[#0f233d] via-[#162f52] to-[#1a3861] text-white">
+        <div className="pm-hd px-5 sm:px-6 py-4 flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-lg"><ShieldCheck size={22} /></div>
             <div>
@@ -200,7 +210,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
               <p className="text-xs text-blue-100/90 mt-0.5">تحكم دقيق في شاشات كل مستخدم مع الحفاظ على افتراضيات الدور — حفظ فوري لكل حساب</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition" aria-label="إغلاق"><X size={18} /></button>
+          <button type="button" onClick={onClose} className="pm-x" aria-label="إغلاق"><X size={18} /></button>
         </div>
 
         <div className="pm-body flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
@@ -220,8 +230,8 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
               {filteredUsers.map((u) => {
                 const active = selectedUserId === u.id;
                 return (
-                  <button key={u.id} onClick={()=>setSelectedUserId(u.id)} className={`w-full text-right rounded-xl border p-2.5 transition ${active ? 'bg-[var(--app-card)] border-[var(--app-primary)] shadow-sm' : 'bg-[var(--app-card)] border-[var(--app-border)] hover:bg-[var(--app-card-hover)]'}`}>
-                    <div className="flex items-center justify-between gap-2"><span className="font-black text-[var(--app-text)] text-xs truncate">{u.name}</span><span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${active ? 'bg-[var(--app-primary)] text-white border-[var(--app-primary)]' : 'bg-[var(--app-card-secondary)] text-[var(--app-text-muted)] border-[var(--app-border)]'}`}>{ROLE_LABELS[u.role] || u.role}</span></div>
+                  <button key={u.id} onClick={()=>setSelectedUserId(u.id)} className={`pm-user ${active ? 'is-on' : ''}`}>
+                    <div className="flex items-center justify-between gap-2"><span className="font-black text-[var(--app-text)] text-xs truncate">{u.name}</span><span className={`pm-chip ${active ? 'is-on' : ''}`}>{ROLE_LABELS[u.role] || u.role}</span></div>
                     <div className="mt-1 text-[10px] font-bold text-[var(--app-text-muted)] truncate">@{u.username} · {u.branchName || 'بدون فرع'} · {SECTOR_LABELS[u.sector || 'all'] || 'الكل'}</div>
                   </button>
                 );
@@ -238,7 +248,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                 <div className="p-4 sm:p-5 border-b border-[var(--app-border)] space-y-3 bg-[var(--app-card)]">
                   <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-[#102b4e] text-white flex items-center justify-center font-black">{selectedUser.name.charAt(0)}</div>
+                      <div className="pm-av">{selectedUser.name.charAt(0)}</div>
                       <div className="min-w-0">
                         <div className="font-black text-[var(--app-text)] text-base truncate">{selectedUser.name}</div>
                         <div className="text-[11px] font-bold text-[var(--app-text-muted)]">@{selectedUser.username} · {selectedUser.branchName || 'بدون فرع'}</div>
@@ -264,8 +274,8 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                     const allOn = g.tabs.every((t) => allowedTabs.includes(t.id));
                     const someOn = g.tabs.some((t) => allowedTabs.includes(t.id));
                     return (
-                      <section key={g.title} className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] overflow-hidden">
-                        <div className="px-4 py-3 border-b border-[var(--app-border)] flex items-center justify-between gap-2 bg-[var(--app-card-secondary)]">
+                      <section key={g.title} className={`pm-grp pm-grp--${GROUP_TONES[g.title] || 'blue'}`}>
+                        <div className="pm-grp__hd flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2"><span className={`w-2.5 h-2.5 rounded-full ${allOn ? 'bg-emerald-500' : someOn ? 'bg-amber-500' : 'bg-slate-400'}`} /><h3 className="font-black text-[var(--app-text)] text-sm">{g.title}</h3><span className="text-[10px] font-bold text-[var(--app-text-muted)]">{g.tabs.filter(t=>allowedTabs.includes(t.id)).length}/{g.tabs.length}</span></div>
                           <div className="flex items-center gap-1.5"><button onClick={()=>setGroup(g.tabs.map(t=>t.id), true)} className="text-[11px] font-extrabold px-2.5 py-1 rounded-lg border border-[var(--app-ok-line)] text-[var(--app-ok-text)] bg-[var(--app-ok-tint)] hover:brightness-110">تفعيل الكل</button><button onClick={()=>setGroup(g.tabs.map(t=>t.id), false)} className="text-[11px] font-extrabold px-2.5 py-1 rounded-lg border border-[var(--app-border)] text-[var(--app-text-muted)] bg-[var(--app-card)] hover:bg-[var(--app-card-hover)]">إيقاف الكل</button></div>
                         </div>
@@ -277,7 +287,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                             const customOn = !isDefault && isAllowed;
                             const customOff = isDefault && !isAllowed;
                             return (
-                              <button key={tab.id} type="button" onClick={() => toggleTab(tab.id)} className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition text-right ${isAllowed ? 'bg-[var(--app-primary-tint)] border-[var(--app-primary-border)] text-[var(--app-text)]' : 'bg-[var(--app-card)] border-[var(--app-border)] text-[var(--app-text-muted)] hover:bg-[var(--app-card-hover)]'} ${isHome ? 'opacity-90 cursor-default' : 'cursor-pointer'}`}>
+                              <button key={tab.id} type="button" onClick={() => toggleTab(tab.id)} className={`pm-tile ${isAllowed ? 'is-on' : ''} ${isHome ? 'is-home' : ''}`}>
                                 <div className="min-w-0">
                                   <div className="font-extrabold text-xs truncate">{tab.label}</div>
                                   <div className="text-[10px] font-bold text-[var(--app-text-muted)] mt-0.5">{isHome ? 'أساسية (دائمًا مفعّلة)' : isAllowed ? 'وصول مفعّل' : 'غير متاح'}</div>
@@ -300,7 +310,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                   <div className="pm-foot-note min-w-0 flex-1 text-xs font-bold text-[var(--app-text-muted)] flex items-center gap-2"><Building2 size={14}/> يتم تطبيق الصلاحيات على حساب <b className="text-[var(--app-text)]">{selectedUser.name}</b> فور الحفظ (قد يلزم إعادة فتح الجلسة عند المستخدم).</div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
                     <button onClick={handleReset} disabled={isSaving} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[var(--app-border)] text-[var(--app-text)] text-sm font-black hover:bg-[var(--app-card-hover)] disabled:opacity-50 bg-[var(--app-card)]"><RotateCcw size={15}/> افتراضي الدور</button>
-                    <button onClick={handleSave} disabled={isSaving} className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#102b4e] text-white font-black shadow-lg shadow-blue-900/20 hover:bg-[#16365f] disabled:opacity-50"><Save size={15}/> {isSaving ? 'جارٍ الحفظ...' : 'حفظ الصلاحيات'}</button>
+                    <button onClick={handleSave} disabled={isSaving} className="pm-save inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl font-black disabled:opacity-50"><Save size={15}/> {isSaving ? 'جارٍ الحفظ...' : 'حفظ الصلاحيات'}</button>
                   </div>
                 </div>
               </>

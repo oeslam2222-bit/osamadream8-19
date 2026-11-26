@@ -16,6 +16,8 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { KpiCard } from './ui/KpiCard';
+import '../styles/ui-polish.css';
 import { formatCurrency } from '../services/invoiceService';
 import {
   getQueuedMutations,
@@ -521,7 +523,7 @@ export const PendingSyncView: React.FC<PendingSyncViewProps> = ({ onNavigate }) 
             type="button"
             onClick={() => void loadAllQueues()}
             disabled={loading || !!busyAction}
-            className="h-10 px-4 rounded-xl border border-[var(--app-border)] bg-[var(--app-card-secondary)] hover:bg-[var(--app-card-hover)] text-[var(--app-text)] text-xs font-black inline-flex items-center gap-2 transition cursor-pointer whitespace-nowrap disabled:opacity-50"
+            className="ps-btn"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>تحديث القائمة</span>
@@ -531,7 +533,7 @@ export const PendingSyncView: React.FC<PendingSyncViewProps> = ({ onNavigate }) 
             type="button"
             onClick={() => void handleFlushNow()}
             disabled={isOffline || !!busyAction || stats.totalCount === 0}
-            className="h-10 px-5 rounded-xl bg-[var(--app-primary)] hover:bg-[var(--app-primary-hover)] text-white text-xs font-black inline-flex items-center gap-2 transition cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ps-btn ps-btn--primary"
           >
             {busyAction === 'flush' ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -544,50 +546,35 @@ export const PendingSyncView: React.FC<PendingSyncViewProps> = ({ onNavigate }) 
       </header>
 
       {/* Summary Strip */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] p-4">
-          <div className="text-xs font-bold text-[var(--app-text-muted)]">إجمالي العمليات المعلّقة</div>
-          <div className="mt-1.5 text-2xl font-black text-[var(--app-text)] tabular-nums">
-            {stats.totalCount.toLocaleString('en-US')}
-          </div>
-          <div className="mt-1 text-[11px] font-medium text-[var(--app-text-muted)]">
-            بانتظار الرفع من هذا الجهاز
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] p-4">
-          <div className="text-xs font-bold text-[var(--app-text-muted)]">فواتير أوفلاين</div>
-          <div className="mt-1.5 text-2xl font-black text-[var(--app-primary-text)] tabular-nums">
-            {stats.invoicesCount.toLocaleString('en-US')}
-          </div>
-          <div className="mt-1 text-[11px] font-medium text-[var(--app-text-muted)]">
-            طابور الفواتير المستقل
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] p-4">
-          <div className="text-xs font-bold text-[var(--app-text-muted)]">متوقفة / بها أخطاء</div>
-          <div
-            className={`mt-1.5 text-2xl font-black tabular-nums ${
-              stats.failedCount > 0 ? 'text-[var(--app-risk-text)]' : 'text-[var(--app-text)]'
-            }`}
-          >
-            {stats.failedCount.toLocaleString('en-US')}
-          </div>
-          <div className="mt-1 text-[11px] font-medium text-[var(--app-text-muted)] tabular-nums">
-            منها {stats.deadCount.toLocaleString('en-US')} متوقفة نهائياً (≥{MAX_ATTEMPTS} محاولات)
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] p-4">
-          <div className="text-xs font-bold text-[var(--app-text-muted)]">الحجم التقديري المعلّق</div>
-          <div className="mt-1.5 text-2xl font-black text-[var(--app-text)] font-mono tabular-nums" dir="ltr">
-            {formatBytes(stats.totalBytes)}
-          </div>
-          <div className="mt-1 text-[11px] font-medium text-[var(--app-text-muted)]">
-            حذف العالقة يمنع تكرار استهلاك Egress
-          </div>
-        </div>
+      <section className="kpi-cards kpi-cards--4">
+        <KpiCard
+          tone="sales"
+          label="إجمالي العمليات المعلّقة"
+          value={stats.totalCount.toLocaleString('en-US')}
+          meta="بانتظار الرفع من هذا الجهاز"
+          icon={<UploadCloud />}
+        />
+        <KpiCard
+          tone="promo"
+          label="فواتير أوفلاين"
+          value={stats.invoicesCount.toLocaleString('en-US')}
+          meta="طابور الفواتير المستقل"
+          icon={<FileText />}
+        />
+        <KpiCard
+          tone={stats.failedCount > 0 ? 'debt' : 'collection'}
+          label="متوقفة / بها أخطاء"
+          value={stats.failedCount.toLocaleString('en-US')}
+          meta={`منها ${stats.deadCount.toLocaleString('en-US')} متوقفة نهائياً (≥${MAX_ATTEMPTS} محاولات)`}
+          icon={<AlertTriangle />}
+        />
+        <KpiCard
+          tone="due"
+          label="الحجم التقديري المعلّق"
+          value={<span dir="ltr">{formatBytes(stats.totalBytes)}</span>}
+          meta="حذف العالقة يمنع تكرار استهلاك Egress"
+          icon={<Database />}
+        />
       </section>
 
       {/* Alerts: Storage Quota or Dead Letter */}
@@ -703,11 +690,7 @@ export const PendingSyncView: React.FC<PendingSyncViewProps> = ({ onNavigate }) 
                   key={tab.id}
                   type="button"
                   onClick={() => setFilterMode(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
-                    filterMode === tab.id
-                      ? 'bg-[var(--app-card)] text-[var(--app-text)] shadow-xs'
-                      : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'
-                  }`}
+                  className={`ps-seg ${filterMode === tab.id ? 'ps-seg--on' : ''}`}
                 >
                   {tab.label}
                 </button>

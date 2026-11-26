@@ -15,6 +15,7 @@ import {
   Wallet,
   Search,
   Filter,
+  Users,
   RotateCw,
   Building2,
   UserCheck,
@@ -50,6 +51,7 @@ import type { Customer, CustomerVisit } from '../types';
 import { EmptyState } from './ui/EmptyState';
 import { CustomerSearchSelect } from './CustomerSearchSelect';
 import '../styles/visits-gps.css';
+import '../styles/visits-polish.css';
 import { DebouncedSearchInput } from './DebouncedSearchInput';
 
 const resolveStoreAvatar = (customer?: Partial<Customer> | null): string => {
@@ -685,6 +687,7 @@ export const VisitsDashboard: React.FC = () => {
 
   // عملاء لم تتم زيارتهم هذا الشهر — بيتأثر بفلتر المندوب والبحث أعلى الصفحة
   const [showUnvisited, setShowUnvisited] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [unvisitedLimit, setUnvisitedLimit] = useState(30);
   const unvisitedCustomers = useMemo(() => {
     if (!showUnvisited) return [] as Customer[];
@@ -713,6 +716,32 @@ export const VisitsDashboard: React.FC = () => {
       })
       .sort((a, b) => (Number(b.balance) || 0) - (Number(a.balance) || 0));
   }, [showUnvisited, visits, myCustomers, repFilter, deferredSearch]);
+  // تغطية المندوبين هذا الشهر: عملاء اتزاروا ÷ عملاء المندوب (الأقل تغطية الأول)
+  const [showCoverage, setShowCoverage] = useState(true);
+  const repCoverage = useMemo(() => {
+    if (!showCoverage || currentUser?.role === 'sales_rep') return [] as { name: string; total: number; visited: number; pct: number }[];
+    const monthPrefix = new Date().toISOString().slice(0, 7);
+    const visitedIds = new Set<string>();
+    const visitedCodes = new Set<string>();
+    visits.forEach((v) => {
+      if (!String(v.date || '').startsWith(monthPrefix)) return;
+      if (v.customerId) visitedIds.add(v.customerId);
+      if (v.customerCode) visitedCodes.add(v.customerCode);
+    });
+    const map = new Map<string, { name: string; total: number; visited: number }>();
+    myCustomers.forEach((c) => {
+      const name = (c.salesRepName || c.repName || '').trim();
+      if (!name) return;
+      const row = map.get(name) || { name, total: 0, visited: 0 };
+      row.total += 1;
+      if (visitedIds.has(c.id) || (c.code && visitedCodes.has(c.code))) row.visited += 1;
+      map.set(name, row);
+    });
+    return Array.from(map.values())
+      .map((r) => ({ ...r, pct: r.total > 0 ? Math.round((r.visited / r.total) * 100) : 0 }))
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);
+  }, [showCoverage, visits, myCustomers, currentUser?.role]);
+  const [coverageAll, setCoverageAll] = useState(false);
   const branchOptions = useMemo(() => {
     const branches = [...new Set(visits.map((v) => v.branchName).filter(Boolean) as string[])];
     return branches.sort((a, b) => a.localeCompare(b, 'ar'));
@@ -727,6 +756,8 @@ export const VisitsDashboard: React.FC = () => {
     repFilter !== 'all' ||
     branchFilter !== 'all';
 
+  const extraFiltersCount = (branchFilter !== 'all' ? 1 : 0) + (repFilter !== 'all' ? 1 : 0) + (geoFilter !== 'all' ? 1 : 0);
+
   const resetFilters = () => {
     setSearch('');
     setTimeFilter('month');
@@ -738,7 +769,7 @@ export const VisitsDashboard: React.FC = () => {
   };
 
   return (
-    <div className="tg-dash cr-page space-y-4" dir="rtl">
+    <div className="tg-dash cr-page vp-page space-y-4" dir="rtl">
       {/* Flash message (توحيد مع tg-toast) */}
       {flash && (
         <div className="tg-toast">
@@ -838,7 +869,7 @@ export const VisitsDashboard: React.FC = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <section className="tg-card p-5 sm:p-6 space-y-4">
+      <section className="tg-card vp-filters-card p-4 sm:p-5 space-y-3">
         <div className="vis-toolbar flex flex-col md:flex-row md:flex-wrap items-stretch md:items-center gap-3">
           {/* Main search input */}
           <div className="relative min-w-0 flex-1 md:basis-[280px]">
@@ -917,10 +948,21 @@ export const VisitsDashboard: React.FC = () => {
               كل الفترات
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowMoreFilters((v) => !v)}
+            aria-expanded={showMoreFilters || extraFiltersCount > 0}
+            className="vp-morebtn shrink-0 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>فلاتر إضافية</span>
+            {extraFiltersCount > 0 && <span className="vp-morebtn__n">{extraFiltersCount}</span>}
+          </button>
         </div>
 
         {/* Secondary filters row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 pt-3 border-t border-[var(--tg-line)] text-xs">
+        <div className="vp-filters grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3 border-t border-[var(--tg-line)] text-xs" data-more={showMoreFilters || extraFiltersCount > 0 ? 'on' : 'off'}>
           {/* Visit Type */}
           <div>
             <label className="block text-[11px] font-bold text-slate-600 mb-1">نوع الزيارة</label>
@@ -976,7 +1018,7 @@ export const VisitsDashboard: React.FC = () => {
           {currentUser?.role !== 'sales_rep' && (
           <>
           {/* Branch / Region */}
-          <div>
+          <div className="vp-extra">
             <label className="block text-[11px] font-bold text-slate-600 mb-1">المنطقة / الفرع</label>
             <select
               value={branchFilter}
@@ -994,7 +1036,7 @@ export const VisitsDashboard: React.FC = () => {
             </select>
           </div>
           {/* Sales Rep */}
-          <div>
+          <div className="vp-extra">
             <label className="block text-[11px] font-bold text-slate-600 mb-1">المندوب</label>
             <select
               value={repFilter}
@@ -1015,7 +1057,7 @@ export const VisitsDashboard: React.FC = () => {
           )}
 
           {/* Geo Verification Filter */}
-          <div>
+          <div className="vp-extra">
             <label className="block text-[11px] font-bold text-slate-600 mb-1">توثيق الموقع (GPS)</label>
             <select
               value={geoFilter}
@@ -1049,17 +1091,18 @@ export const VisitsDashboard: React.FC = () => {
       </section>
 
       {/* عملاء لم تتم زيارتهم هذا الشهر */}
-      <section className="rounded-2xl border border-[var(--tg-line)] bg-white p-3 sm:p-4 space-y-3">
+      <section className="vp-unv rounded-2xl p-3 sm:p-4 space-y-3">
         <button
           type="button"
           onClick={() => { setShowUnvisited((v) => !v); setUnvisitedLimit(30); }}
           className="w-full flex items-center justify-between gap-2 text-right cursor-pointer"
           aria-expanded={showUnvisited}
         >
-          <span className="font-black text-sm text-slate-900">
+          <span className="vp-unv__t font-black text-sm">
+            <Users className="w-4 h-4" />
             عملاء لم تتم زيارتهم هذا الشهر{showUnvisited ? ` (${unvisitedCustomers.length.toLocaleString('en-US')})` : ''}
           </span>
-          <span className="text-xs font-black text-slate-600">{showUnvisited ? 'إخفاء ▲' : 'عرض ▼'}</span>
+          <span className="vp-unv__a text-xs font-black">{showUnvisited ? 'إخفاء ▲' : 'عرض القائمة ▼'}</span>
         </button>
         {showUnvisited && (
           <div className="space-y-2">
@@ -1093,6 +1136,37 @@ export const VisitsDashboard: React.FC = () => {
         )}
       </section>
 
+      {/* تغطية المندوبين */}
+      {currentUser?.role !== 'sales_rep' && (
+        <section className="vp-cov rounded-2xl p-3 sm:p-4 space-y-3">
+          <button type="button" onClick={() => setShowCoverage((v) => !v)} className="w-full flex items-center justify-between gap-2 text-right cursor-pointer" aria-expanded={showCoverage}>
+            <span className="vp-cov__t font-black text-sm"><UserCheck className="w-4 h-4" />تغطية المندوبين هذا الشهر <small>(الأقل تغطية أولًا)</small></span>
+            <span className="vp-cov__a text-xs font-black">{showCoverage ? 'إخفاء ▲' : 'عرض ▼'}</span>
+          </button>
+          {showCoverage && (
+            repCoverage.length === 0 ? (
+              <div className="text-xs font-bold vp-cov__empty">لا توجد بيانات مناديب لحساب التغطية.</div>
+            ) : (
+              <>
+                <div className="vp-cov__grid">
+                  {(coverageAll ? repCoverage : repCoverage.slice(0, 8)).map((r) => (
+                    <div key={r.name} className="vp-cov__row" data-tone={r.pct >= 60 ? 'ok' : r.pct >= 30 ? 'warn' : 'risk'}>
+                      <div className="vp-cov__top"><span className="vp-cov__n">{r.name}</span><span className="vp-cov__p">{r.pct}% · {r.visited}/{r.total}</span></div>
+                      <div className="vp-cov__bar"><span style={{ width: `${Math.min(100, r.pct)}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+                {repCoverage.length > 8 && (
+                  <button type="button" onClick={() => setCoverageAll((v) => !v)} className="vp-morebtn px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer">
+                    {coverageAll ? 'عرض أقل' : `عرض كل المناديب (${repCoverage.length})`}
+                  </button>
+                )}
+              </>
+            )
+          )}
+        </section>
+      )}
+
       {/* Main Results Container */}
       <div className="space-y-4">
         {/* Count Bar */}
@@ -1103,7 +1177,7 @@ export const VisitsDashboard: React.FC = () => {
         </div>
 
         {/* 1. Desktop & Laptop View: Table موحد (مخفي على الموبايل/التابلت) */}
-        <div className="hidden lg:block w-full overflow-hidden rounded-[28px] border border-[var(--tg-line)] bg-white shadow-sm">
+        <div className="vp-table-wrap hidden lg:block w-full overflow-hidden">
           <table className="tg-table w-full text-right text-xs">
             <thead className="bg-[var(--tg-card-2)] text-[var(--app-text)] font-black sticky top-0 z-10">
               <tr>
@@ -1128,7 +1202,8 @@ export const VisitsDashboard: React.FC = () => {
                 return (
                   <tr
                     key={v.id || idx}
-                    className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group cursor-pointer"
+                    data-tone={v.status === 'منفذة' ? 'ok' : v.status === 'لم تتم' || v.status === 'ملغاة' ? 'risk' : 'warn'}
+                    className="vp-tr transition group cursor-pointer"
                     onClick={() => setSelectedVisit(v)}
                   >
                     <td className="p-3 text-center font-black text-slate-600">
@@ -1442,14 +1517,14 @@ export const VisitsDashboard: React.FC = () => {
       {/* Modal: New Visit Registration */}
       {showForm && (
         <div
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in"
+          className="fixed inset-0 vp-overlay flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setShowForm(false);
           }}
         >
           <form
             onSubmit={submit}
-            className="relative z-[60] bg-white dark:bg-[#0f172a] rounded-3xl p-5 sm:p-7 w-full max-w-full sm:max-w-lg max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800"
+            className="vp-modal relative z-[60] rounded-3xl p-5 sm:p-7 w-full max-w-full sm:max-w-lg max-h-[92vh] overflow-y-auto"
             dir="rtl"
           >
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1848,7 +1923,7 @@ export const VisitsDashboard: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full min-h-[46px] bg-[#0b2337] hover:bg-[#123a52] text-white font-black text-sm rounded-2xl shadow-lg shadow-[#0b2337]/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                className="vp-submit w-full min-h-[46px] text-white font-black text-sm rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Clock className="w-4 h-4 text-[#7fc0ff]" />
                 <span>حفظ وتوثيق الزيارة</span>
@@ -1861,13 +1936,13 @@ export const VisitsDashboard: React.FC = () => {
       {/* Modal: Visit Full Details */}
       {selectedVisit && (
         <div
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in"
+          className="fixed inset-0 vp-overlay flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setSelectedVisit(null);
           }}
         >
           <div
-            className="relative z-[60] bg-white dark:bg-[#0f172a] rounded-3xl p-5 sm:p-7 w-full max-w-full sm:max-w-lg max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800"
+            className="vp-modal relative z-[60] rounded-3xl p-5 sm:p-7 w-full max-w-full sm:max-w-lg max-h-[92vh] overflow-y-auto"
             dir="rtl"
           >
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">

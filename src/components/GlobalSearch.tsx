@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Users, Receipt, Boxes, RotateCcw, X, ArrowLeft, UserCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { normalizeArabicText } from '../services/arabicMatchingService';
+import '../styles/global-search.css';
 
 export interface GlobalSearchResult {
   id: string;
