@@ -6951,6 +6951,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // Auto push to Supabase Cloud Database
     saveInvoiceWithQueue(primaryInvoice).catch((e) => console.warn('Supabase invoice save failed:', e));
 
+    // ربط الطلب بزيارة اليوم (أو إنشاء زيارة تلقائية) — متابعة فقط، لا يمس رصيد العميل ولا يعطّل حفظ الطلب لو فشل.
+    try {
+      linkOrderToTodayVisit(primaryInvoice);
+    } catch (e) {
+      console.warn('linkOrderToTodayVisit failed:', e);
+    }
+
     clearCart();
 
     recordAuditLog({
@@ -8616,9 +8623,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         ? (customer.visitCount2026 || 0)
         : ((customer.visitCount2026 || 0) + 1),
       visitHistory: [newVisitObj, ...existingVisits.filter((v) => v.id !== newVisitId)],
-      currentBalance: visit.collectedAmount
-        ? Math.max(0, (customer.currentBalance ?? customer.balance ?? 0) - visit.collectedAmount)
-        : customer.currentBalance,
+      // الرصيد والمديونية بيتحدثوا يدويًا من الإدارة — التحصيل هنا متابعة فقط ومبيخصمش من رصيد العميل.
+      currentBalance: customer.currentBalance,
     };
 
     setCustomers((prev) => {
@@ -8807,6 +8813,58 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return { success: failed.length === 0, added: accepted.length, duplicates, queued, failed };
   };
   
+  // أمر بيع جديد → زيارة اليوم لنفس العميل: لو موجودة نضيف عليها رقم الأمر، لو لأ نعمل زيارة «بيع وطلبية» تلقائية.
+  // تحصيل/مرتجع/أمر بيع في نفس اليوم لنفس العميل = زيارة واحدة مترابطة، بدون سطر مكرر وبدون أي تغيير في الرصيد.
+  const linkOrderToTodayVisit = (inv: Invoice) => {
+    if (!currentUser || !inv?.customerId) return;
+    const customer = customers.find((c) => c.id === inv.customerId);
+    if (!customer) return; // عميل نقدي مباشر: مفيش ملف عميل نربط عليه
+    const today = new Date().toISOString().slice(0, 10);
+    const invNo = String(inv.invoiceNumber || '').trim();
+    const total = Number(inv.estimatedGrandTotal || 0);
+    const orderNote = `طلب بيع${invNo ? ` #${invNo}` : ''}${total > 0 ? ` بقيمة ${Math.round(total).toLocaleString('en-US')} ج.م` : ''}`;
+    const sameDay = visits.find(
+      (v) => v.customerId === customer.id && String(v.date || '').slice(0, 10) === today && !v.isArchived
+    );
+    if (!sameDay) {
+      addVisit({
+        customerId: customer.id,
+        customerName: customer.name,
+        customerCode: customer.code,
+        date: today,
+        time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+        repId: inv.repId || currentUser.id,
+        repName: inv.repName || currentUser.name || 'المندوب',
+        branchName: inv.branchName || customer.branchName,
+        sector: customer.sector || 'all',
+        type: 'زيارة بيع وطلبية',
+        outcome: 'تم عمل طلبية',
+        status: 'منفذة',
+        collectedAmount: 0,
+        invoiceNumber: invNo || undefined,
+        notes: `${orderNote} — تسجيل تلقائي`,
+      } as Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>);
+      return;
+    }
+    const known = String(sameDay.invoiceNumber || '').split(/[,،]\s*/).filter(Boolean);
+    if (invNo && known.includes(invNo)) return;
+    const updatedVisit: CustomerVisit = {
+      ...sameDay,
+      invoiceNumber: [...known, invNo].filter(Boolean).join('، '),
+      outcome: !sameDay.outcome || sameDay.outcome === 'متابعة فقط' ? 'تم عمل طلبية' : sameDay.outcome,
+      notes: [sameDay.notes, orderNote].filter(Boolean).join(' | '),
+      updatedAt: new Date().toISOString(),
+    };
+    setVisits((prev) => {
+      const next = prev.map((item) => (item.id === sameDay.id ? updatedVisit : item));
+      persistVisits(next);
+      return next;
+    });
+    syncOrQueue('visits', 'upsert', updatedVisit.id, updatedVisit, () =>
+      saveVisitsToSupabase([updatedVisit])
+    ).catch((e) => console.warn('Supabase visit link-order error:', e));
+  };
+
   const updateVisit = (visit: CustomerVisit) => {
     if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
     if (!canManageVisit(visit)) return { success: false, message: 'لا تملك صلاحية تعديل هذه الزيارة' };

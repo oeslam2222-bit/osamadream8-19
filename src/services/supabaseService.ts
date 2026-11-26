@@ -2932,6 +2932,8 @@ export const INVOICE_SIGNAL_ID = 'dream_invoice_signal_v1';
  * بنفتكر الفشل مرة واحدة في الجلسة وبعدها بنروح على `orders` على طول.
  */
 let invoicesTableBlocked = false;
+// لو قراءة جدول invoices فشلت (RLS/400/404) بنوقف المحاولة لباقي الجلسة بدل ما نكرر الخطأ في كل فحص.
+let invoicesReadDisabled = false;
 
 export function areInvoicesTableWritesBlocked(): boolean {
   return invoicesTableBlocked;
@@ -3377,7 +3379,11 @@ async function fetchInvoicesFromSupabaseImpl(
     // الكتابة بتروح لجدول invoices (لو مفتوح) أو orders (لو مقفول)، فلازم القراءة
     // تجمع الجدولين. قبل كده كانت بتقرأ orders وبس، وكانت بتتجاهل invoices لو
     // orders فيه أي صف، فالفواتير الجديدة ماكانتش بتظهر للمشرف ولا للإدارة.
-    const [ordResult, invResult] = await Promise.all([buildQuery('orders'), buildQuery('invoices')]);
+    const [ordResult, invResult] = await Promise.all([
+      buildQuery('orders'),
+      invoicesReadDisabled ? Promise.resolve({ data: [], error: null }) : buildQuery('invoices'),
+    ]);
+    if ((invResult as any)?.error) invoicesReadDisabled = true;
     const seenIds = new Set<string>();
     const rawInvoices: any[] = [];
     [invResult, ordResult].forEach((res: any) => {
@@ -3595,7 +3601,11 @@ export async function fetchInvoiceContentStamp(
     }
 
     if ((res.error || ((res.data?.length ?? 0) === 0 && !sessionInvoicesCheckedEmpty))) {
-      const invRes = await probe('invoices', 'created_at');
+      let invRes = await probe('invoices', 'created_at');
+      if (invRes.error && isMissingSectorError(invRes.error)) {
+        rememberMissingColumn('invoices', 'sector');
+        invRes = await probe('invoices', 'created_at');
+      }
       if (!invRes.error && invRes.data && invRes.data.length > 0) {
         table = 'invoices';
         stampColumn = 'created_at';
@@ -3608,9 +3618,15 @@ export async function fetchInvoiceContentStamp(
     const maxVal = res.data && res.data.length > 0 ? (res.data[0] as any)?.[stampColumn] ?? null : null;
     // الجدول التاني: الفواتير الجديدة بتتكتب في invoices، فلازم بصمتها تدخل المقارنة.
     let otherMax: string | null = null;
-    if (table === 'orders') {
+    if (table === 'orders' && !invoicesReadDisabled) {
       try {
-        const other = await probe('invoices', 'created_at');
+        let other = await probe('invoices', 'created_at');
+        if (other.error && isMissingSectorError(other.error)) {
+          // جدول invoices مالوش عمود sector: نفتكرها ونعيد من غير فلتر القطاع (كان بيرجّع 400).
+          rememberMissingColumn('invoices', 'sector');
+          other = await probe('invoices', 'created_at');
+        }
+        if (other.error) invoicesReadDisabled = true;
         if (!other.error && other.data && other.data.length > 0) {
           const v = (other.data[0] as any)?.created_at;
           otherMax = v != null ? String(v) : null;

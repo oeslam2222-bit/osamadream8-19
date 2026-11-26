@@ -47,10 +47,27 @@ export async function idbGet<T>(key: string): Promise<T | null> {
 }
 
 let _idbQuotaExceeded = false;
+// Circuit breaker: after a quota failure, skip big writes for a while.
+// store.put() structured-clones the whole value on the main thread BEFORE the
+// quota error appears, so retrying a 5MB write on every load froze the page.
+let _idbQuotaTrippedAt = 0;
+const QUOTA_COOLDOWN_MS = 10 * 60 * 1000;
+const SMALL_WRITE_CHARS = 20000;
+function tripQuota(): void { _idbQuotaExceeded = true; _idbQuotaTrippedAt = Date.now(); }
+function quotaCooling(): boolean {
+  return _idbQuotaExceeded && Date.now() - _idbQuotaTrippedAt < QUOTA_COOLDOWN_MS;
+}
+function isBigValue(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 200;
+  if (value && typeof value === 'object') return Object.keys(value as object).length > 200;
+  if (typeof value === 'string') return value.length > SMALL_WRITE_CHARS;
+  return false;
+}
 export function isStorageQuotaExceeded(): boolean { return _idbQuotaExceeded; }
-export function resetStorageQuotaFlag(): void { _idbQuotaExceeded = false; }
+export function resetStorageQuotaFlag(): void { _idbQuotaExceeded = false; _idbQuotaTrippedAt = 0; }
 
 export async function idbSet<T>(key: string, value: T): Promise<boolean> {
+  if (quotaCooling() && isBigValue(value)) return false;
   try {
     const db = await openDB();
     return new Promise((resolve) => {
@@ -61,7 +78,7 @@ export async function idbSet<T>(key: string, value: T): Promise<boolean> {
       tx.onerror = () => {
         const err = tx.error;
         if (err && (err.name === 'QuotaExceededError' || /quota/i.test(err.message || ''))) {
-          _idbQuotaExceeded = true;
+          tripQuota();
           console.warn('[storage] IndexedDB quota exceeded while writing', key);
         }
         resolve(false);
@@ -69,7 +86,7 @@ export async function idbSet<T>(key: string, value: T): Promise<boolean> {
       tx.onabort = () => {
         const err = tx.error;
         if (err && (err.name === 'QuotaExceededError' || /quota/i.test(err.message || ''))) {
-          _idbQuotaExceeded = true;
+          tripQuota();
           console.warn('[storage] IndexedDB quota exceeded (abort) while writing', key);
         }
         resolve(false);
@@ -77,7 +94,7 @@ export async function idbSet<T>(key: string, value: T): Promise<boolean> {
     });
   } catch (err: any) {
     if (err && (err?.name === 'QuotaExceededError' || /quota/i.test(err?.message || ''))) {
-      _idbQuotaExceeded = true;
+      tripQuota();
       console.warn('[storage] IndexedDB quota exceeded while opening/writing', key);
     }
     return false;
