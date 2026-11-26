@@ -1,0 +1,96 @@
+/* ==========================================================================
+   visits-polish.css — لوحة الزيارات + نافذة تسجيل/تفاصيل الزيارة
+   كله من توكنز --app-* و --kpi-* → نهاري/ليلي. مقصور على .vp-page. من غير !important ولا blur.
+   ========================================================================== */
+.vp-page { --vp-ok: var(--kpi-collection, #059669); --vp-warn: var(--kpi-warn, #d97706); --vp-risk: var(--kpi-debt, #e11d48); --vp-info: var(--kpi-sales, #2563eb); }
+
+/* الفلاتر */
+.vp-page .vp-filters-card { background: var(--app-card); border: 1px solid var(--app-border); border-radius: 18px; }
+.vp-page .vis-seg { background: var(--app-card-secondary, var(--app-card)); border: 1px solid var(--app-border); }
+.vp-page .vis-seg button { background: transparent; color: var(--app-text-muted); border: 1px solid transparent; box-shadow: none; }
+.vp-page .vis-seg button:hover { color: var(--app-text); }
+.vp-page .vis-seg button[class*='bg-white'] { background: linear-gradient(135deg, var(--kpi-sales-a, #1d4ed8), var(--vp-info)); color: #fff; }
+.vp-page .vp-morebtn { background: var(--app-card-secondary, var(--app-card)); color: var(--app-text); border: 1px solid var(--app-border); }
+.vp-page .vp-morebtn:hover { border-color: var(--vp-info); }
+.vp-page .vp-morebtn__n { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--vp-info); color: #fff; font-size: 10.5px; }
+.vp-page .vp-filters[data-more='off'] .vp-extra { display: none; }
+.vp-page .vp-filters label { color: var(--app-text-muted); }
+.vp-page .vp-filters .tg-select, .vp-page .vp-filters-card .tg-input { background: var(--app-card-secondary, var(--app-card)); color: var(--app-text); border: 1px solid var(--app-border); }
+.vp-page .vp-filters .tg-select:focus, .vp-page .vp-filters-card .tg-input:focus { border-color: var(--vp-info); box-shadow: 0 0 0 3px color-mix(in srgb, var(--vp-info) 22%, transparent); outline: none; }
+
+/* شريط العملاء اللي لم يُزاروا */
+.vp-page .vp-unv { background: color-mix(in srgb, var(--vp-warn) 12%, var(--app-card)); border: 1px solid color-mix(in srgb, var(--vp-warn) 40%, var(--app-border)); }
+.vp-page .vp-unv__t { display: inline-flex; align-items: center; gap: 8px; color: var(--app-text); font-size: 14px; }
+.vp-page .vp-unv__t svg { color: var(--vp-warn); }
+.vp-page .vp-unv__a { color: color-mix(in srgb, var(--vp-warn) 70%, var(--app-text)); }
+.vp-page .vp-unv [class*='border-slate-200'] { background: var(--app-card); border-color: var(--app-border); }
+.vp-page .vp-unv [class*='text-slate-900'] { color: var(--app-text); }
+.vp-page .vp-unv [class*='text-slate-600'], .vp-page .vp-unv [class*='text-slate-500'] { color: var(--app-text-muted); }
+
+/* الجدول */
+.vp-page .vp-table-wrap { background: var(--app-card); border: 1px solid var(--app-border); border-radius: 18px; box-shadow: var(--app-shadow-card, 0 1px 2px rgba(15,23,42,.05)); }
+.vp-page .vp-table-wrap .tg-table thead { background: color-mix(in srgb, var(--vp-info) 10%, var(--app-card-secondary, var(--app-card))); color: var(--app-text); }
+.vp-page .vp-table-wrap .tg-table thead th { border-bottom: 2px solid var(--vp-info); font-size: 12px; padding-block: 12px; }
+.vp-page .vp-table-wrap .tg-table tbody td { font-size: 13px; color: var(--app-text); border-bottom: 1px solid var(--app-border); }
+.vp-page .vp-tr { --tone: var(--vp-info); }
+.vp-page .vp-tr[data-tone='ok'] { --tone: var(--vp-ok); }
+.vp-page .vp-tr[data-tone='warn'] { --tone: var(--vp-warn); }
+.vp-page .vp-tr[data-tone='risk'] { --tone: var(--vp-risk); }
+.vp-page .vp-tr > td:first-child { box-shadow: inset -4px 0 0 var(--tone); }
+.vp-page .vp-tr:hover > td { background: color-mix(in srgb, var(--tone) 8%, transparent); }
+.vp-page .vp-table-wrap [class*='text-slate-900'], .vp-page .vp-table-wrap [class*='text-slate-800'] { color: var(--app-text); }
+.vp-page .vp-table-wrap [class*='text-slate-600'], .vp-page .vp-table-wrap [class*='text-slate-500'], .vp-page .vp-table-wrap [class*='text-slate-400'] { color: var(--app-text-muted); }
+
+/* الشارات */
+.vp-page .tg-badge { border: 1px solid transparent; font-weight: 800; }
+.vp-page .tg-badge--ok { --bc: var(--vp-ok); }
+.vp-page .tg-badge--warn { --bc: var(--vp-warn); }
+.vp-page .tg-badge--risk { --bc: var(--vp-risk); }
+.vp-page .tg-badge--blue { --bc: var(--vp-info); }
+.vp-page .tg-badge--gray { --bc: #64748b; }
+.vp-page .tg-badge--ok, .vp-page .tg-badge--warn, .vp-page .tg-badge--risk, .vp-page .tg-badge--blue, .vp-page .tg-badge--gray {
+  background: color-mix(in srgb, var(--bc) 14%, transparent); border-color: color-mix(in srgb, var(--bc) 36%, transparent); color: color-mix(in srgb, var(--bc) 75%, var(--app-text)); }
+
+/* كروت الموبايل */
+.vp-page .visit-card { --tone: var(--vp-info); background: linear-gradient(165deg, color-mix(in srgb, var(--tone) 9%, var(--app-card)), var(--app-card) 65%); border: 1px solid color-mix(in srgb, var(--tone) 26%, var(--app-border)); border-inline-start: 5px solid var(--tone); }
+.vp-page .visit-card[data-tone='ok'] { --tone: var(--vp-ok); }
+.vp-page .visit-card[data-tone='warn'] { --tone: var(--vp-warn); }
+.vp-page .visit-card[data-tone='risk'] { --tone: var(--vp-risk); }
+
+/* نافذة تسجيل/تفاصيل الزيارة */
+.vp-page .vp-overlay { background: rgba(2, 8, 23, .62); }
+.vp-page .vp-modal { background: var(--app-card); color: var(--app-text); border: 1px solid var(--app-border); border-top: 4px solid var(--vp-info); box-shadow: 0 30px 60px -20px rgba(2, 8, 23, .6); }
+.vp-page .vp-modal h2, .vp-page .vp-modal [class*='text-slate-900'], .vp-page .vp-modal [class*='text-slate-800'] { color: var(--app-text); }
+.vp-page .vp-modal [class*='text-slate-700'], .vp-page .vp-modal [class*='text-slate-600'], .vp-page .vp-modal [class*='text-slate-500'] { color: var(--app-text-muted); }
+.vp-page .vp-modal .border-b { border-color: var(--app-border); }
+.vp-page .vp-modal input, .vp-page .vp-modal select, .vp-page .vp-modal textarea { background: var(--app-card-secondary, var(--app-card)); color: var(--app-text); border: 1px solid var(--app-border); outline: none; }
+.vp-page .vp-modal input:focus, .vp-page .vp-modal select:focus, .vp-page .vp-modal textarea:focus { border-color: var(--vp-info); box-shadow: 0 0 0 3px color-mix(in srgb, var(--vp-info) 22%, transparent); }
+.vp-page .vp-modal ::placeholder { color: var(--app-text-muted); font-weight: 600; }
+.vp-page .vp-modal [class*='bg-slate-50'], .vp-page .vp-modal [class*='bg-slate-100'] { background: var(--app-card-secondary, var(--app-card)); border-color: var(--app-border); }
+.vp-page .vp-modal [class*='bg-blue-50'] { background: color-mix(in srgb, var(--vp-info) 12%, var(--app-card)); border-color: color-mix(in srgb, var(--vp-info) 35%, var(--app-border)); color: var(--app-text); }
+.vp-page .vp-modal [class*='bg-rose-50'] { background: color-mix(in srgb, var(--vp-risk) 12%, var(--app-card)); border-color: color-mix(in srgb, var(--vp-risk) 35%, var(--app-border)); color: var(--app-text); }
+.vp-page .vp-modal [class*='bg-amber-50'] { background: color-mix(in srgb, var(--vp-warn) 12%, var(--app-card)); border-color: color-mix(in srgb, var(--vp-warn) 35%, var(--app-border)); }
+.vp-page .vp-modal [class*='bg-emerald-50'] { background: color-mix(in srgb, var(--vp-ok) 12%, var(--app-card)); border-color: color-mix(in srgb, var(--vp-ok) 35%, var(--app-border)); }
+.vp-page .vp-modal [class*='app-primary-tint'].w-10 { background: linear-gradient(135deg, var(--kpi-sales-a, #1d4ed8), var(--vp-info)); color: #fff; }
+.vp-page .vp-submit { background: linear-gradient(135deg, var(--kpi-sales-a, #1d4ed8), var(--vp-info)); border: 0; box-shadow: none; }
+.vp-page .vp-submit:hover { filter: brightness(1.06); }
+.vp-page .vp-table-wrap [class*='app-primary-tint'] { background: color-mix(in srgb, var(--vp-info) 12%, var(--app-card)); border-color: color-mix(in srgb, var(--vp-info) 36%, var(--app-border)); color: color-mix(in srgb, var(--vp-info) 75%, var(--app-text)); }
+.vp-page .vp-table-wrap [class*='app-primary-tint']:hover { background: color-mix(in srgb, var(--vp-info) 20%, var(--app-card)); }
+
+/* تغطية المندوبين */
+.vp-page .vp-cov { background: var(--app-card); border: 1px solid var(--app-border); }
+.vp-page .vp-cov__t { display: inline-flex; align-items: center; gap: 8px; color: var(--app-text); }
+.vp-page .vp-cov__t svg { color: var(--vp-info); }
+.vp-page .vp-cov__t small { font-size: 11px; font-weight: 700; color: var(--app-text-muted); }
+.vp-page .vp-cov__a, .vp-page .vp-cov__empty { color: var(--app-text-muted); }
+.vp-page .vp-cov__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+@media (min-width: 768px) { .vp-page .vp-cov__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.vp-page .vp-cov__row { --tone: var(--vp-info); padding: 10px 12px; border-radius: 12px; background: var(--app-card-secondary, var(--app-card)); border: 1px solid var(--app-border); }
+.vp-page .vp-cov__row[data-tone='ok'] { --tone: var(--vp-ok); }
+.vp-page .vp-cov__row[data-tone='warn'] { --tone: var(--vp-warn); }
+.vp-page .vp-cov__row[data-tone='risk'] { --tone: var(--vp-risk); }
+.vp-page .vp-cov__top { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 800; }
+.vp-page .vp-cov__n { color: var(--app-text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vp-page .vp-cov__p { color: color-mix(in srgb, var(--tone) 78%, var(--app-text)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.vp-page .vp-cov__bar { margin-top: 7px; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--tone) 16%, transparent); overflow: hidden; }
+.vp-page .vp-cov__bar > span { display: block; height: 100%; border-radius: 4px; background: var(--tone); }

@@ -1,0 +1,11 @@
+/* قايمة «المزيد» في الشريط العلوي — كانت الأزرار بتطلع مربعات رمادية (ستايل الأزرار العام بيغلب bg-transparent). توكنز → نهاري/ليلي. */
+.ds-moremenu { background: var(--app-card); border-color: var(--app-border); color: var(--app-text); }
+.ds-moremenu button { background: transparent; border: 0; box-shadow: none; color: var(--app-text); }
+.ds-moremenu button:hover { background: color-mix(in srgb, var(--kpi-sales, #2563eb) 10%, transparent); }
+.ds-moremenu button svg { color: var(--app-text-muted); }
+.ds-moremenu button[class*='bg-amber-600'] { background: var(--kpi-warn, #d97706); color: #fff; }
+.ds-moremenu button[class*='bg-[#102b4e]'] { background: linear-gradient(135deg, var(--kpi-sales-a, #1d4ed8), var(--kpi-sales, #2563eb)); color: #fff; }
+.ds-moremenu button[class*='bg-amber-600']:hover, .ds-moremenu button[class*='bg-[#102b4e]']:hover { filter: brightness(1.06); }
+.ds-moremenu hr { border-color: var(--app-border); }
+.ds-moremenu select { background: transparent; color: var(--app-text); }
+.ds-moremenu [class*='text-slate-500'] { color: var(--app-text-muted); }
